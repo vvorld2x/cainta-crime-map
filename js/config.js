@@ -1,3 +1,3 @@
-export const SUPABASE_URL='https://YOUR-PROJECT-REF.supabase.co';
-export const SUPABASE_ANON_KEY='YOUR-SUPABASE-ANON-PUBLIC-KEY';
+export const SUPABASE_URL='https://slzzuifdmuzhlbljtekf.supabase.co/rest/v1/';
+export const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNsenp1aWZkbXV6aGxibGp0ZWtmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE3MTE1NTIsImV4cCI6MjEwNzI4NzU1Mn0.oyupakAJp6pJikvLjCltbNACBtl5R2MiwrPSyzLb6Xk';
 export const CARTO_KEY='';
