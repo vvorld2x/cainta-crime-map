@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://unpkg.com https://cdnjs.cloudflare.com https://cdn.sheetjs.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com https://cdnjs.cloudflare.com; font-src https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://basemaps.cartocdn.com https://server.arcgisonline.com https://unpkg.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'"/>
+<meta name="referrer" content="no-referrer"/>
+<title>Cainta</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" referrerpolicy="no-referrer"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer"/>
+<link rel="stylesheet" href="css/styles.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script type="module" src="js/main.js"></script>
+</head>
+<body>
+
+<div id="login-screen">
+  <form class="login-right" id="login-form" autocomplete="on" novalidate>
+    <h2>Sign in</h2>
+    <div class="lfield">
+      <label for="l-user">Email</label>
+      <div class="lfield-wrap">
+        <i class="fa-solid fa-user"></i>
+        <input type="email" id="l-user" placeholder="Enter your email" autocomplete="username" maxlength="254" required/>
+      </div>
+    </div>
+    <div class="lfield">
+      <label for="l-pass">Password</label>
+      <div class="lfield-wrap">
+        <i class="fa-solid fa-lock"></i>
+        <input type="password" id="l-pass" placeholder="Enter your password" autocomplete="current-password" maxlength="128" required/>
+      </div>
+      <div class="lerr" id="l-err" role="alert"><i class="fa-solid fa-circle-exclamation"></i> <span id="l-err-text">Invalid email or password. Please try again.</span></div>
+    </div>
+    <button class="login-btn" id="login-btn" type="submit"><i class="fa-solid fa-arrow-right-to-bracket"></i> Sign In</button>
+  </form>
+</div>
+
+<div id="app">
+
+<div id="topbar">
+  <div class="tb-brand">
+    <div>
+      <div class="tb-title">Cainta Rizal</div>
+      <div class="tb-sub">Cainta Municipal Police Station</div>
+    </div>
+  </div>
+  <div class="tb-sep"></div>
+  <button class="ntab on" data-tab="map"><i class="fa-solid fa-map"></i> Crime Map</button>
+  <button class="ntab" data-tab="dashboard"><i class="fa-solid fa-chart-pie"></i> Dashboard</button>
+  <button class="ntab" data-tab="encode" id="tab-encode"><i class="fa-solid fa-file-pen"></i> Encoder</button>
+  <button class="ntab" data-tab="predict"><i class="fa-solid fa-brain"></i> Hotspot Analysis</button>
+  <button class="ntab" data-tab="audit" id="tab-audit"><i class="fa-solid fa-clock-rotate-left"></i> Audit Log</button>
+  <div class="tb-right">
+    <div class="tb-sep"></div>
+    <button class="logout-btn" id="dark-btn" title="Switch to Dark Mode"><i class="fa-solid fa-moon"></i></button>
+    <div class="user-pill"><span id="tb-username">—</span></div>
+    <button class="logout-btn" id="logout-btn"><i class="fa-solid fa-right-from-bracket"></i> Logout</button>
+  </div>
+</div>
+
+<div id="body">
+
+<div id="sidebar">
+  <div class="sb-sec">
+    <div class="sb-lbl">Statistics</div>
+    <div class="stat-row">
+      <div class="sc"><div class="sc-val" id="s-total">0</div><div class="sc-lbl">Total Cases</div></div>
+      <div class="sc"><div class="sc-val" id="s-hotspots">—</div><div class="sc-lbl">Hotspots</div></div>
+      <div class="sc"><div class="sc-val" id="s-brgy-count">7</div><div class="sc-lbl">Barangays</div></div>
+    </div>
+  </div>
+  <div class="sb-sec">
+    <div class="sb-lbl">Filter by Crime Type</div>
+    <div class="crime-filter" id="cf-list"></div>
+  </div>
+  <div class="sb-sec">
+    <div class="sb-lbl">Filter by Barangay</div>
+    <select class="brgy-sel" id="brgy-sel" aria-label="Filter by barangay">
+      <option value=""> All Barangays </option>
+    </select>
+  </div>
+  <div class="sb-sec grow">
+    <div class="sb-lbl">Recent Incidents</div>
+    <div class="rec-list" id="rec-list"></div>
+  </div>
+</div>
+
+<div id="map-wrap">
+  <div id="map"></div>
+  <div class="map-float map-layers-panel">
+    <div class="ml-label">Map Layers</div>
+    <div class="layer-row" data-layer="markers"><span class="layer-name">Crime Markers</span><div class="sw on" id="sw-markers"></div></div>
+    <div class="layer-row" data-layer="heatmap"><span class="layer-name">Heatmap Overlay</span><div class="sw on" id="sw-heatmap"></div></div>
+    <div class="layer-row" data-layer="clusters"><span class="layer-name">Hotspot Clusters</span><div class="sw on" id="sw-clusters"></div></div>
+    <div class="divider"></div>
+    <div class="layer-row" id="satellite-row"><span class="layer-name strong">Satellite View</span><div class="sw" id="sw-satellite"></div></div>
+  </div>
+  <div class="map-float map-ctrl">
+    <div class="mc-grp">
+      <button class="mc-btn" id="zoom-in" aria-label="Zoom in"><i class="fa-solid fa-plus"></i></button>
+      <button class="mc-btn" id="zoom-out" aria-label="Zoom out"><i class="fa-solid fa-minus"></i></button>
+    </div>
+    <button class="mc-btn mc-single" id="reset-view" title="Reset View" aria-label="Reset view"><i class="fa-solid fa-crosshairs"></i></button>
+  </div>
+  <div class="map-float map-legend">
+    <div class="leg-title">Index Crimes</div>
+    <div id="legend-items"></div>
+    <div class="divider"></div>
+    <div class="leg-row"><div class="leg-ring" id="leg-ring-hot"></div> Hotspot Cluster</div>
+    <div class="leg-row"><div class="leg-ring" id="leg-ring-int"></div> Intervention Zone</div>
+  </div>
+  <input type="file" id="xlsx-input" accept=".xlsx,.xls" class="hidden"/>
+  <div class="pick-banner" id="pick-banner"><i class="fa-solid fa-crosshairs"></i> Click the map to set coordinates<br><small>Press Esc to cancel</small></div>
+</div>
+
+<div class="panel" id="panel-dashboard">
+  <div class="kpi-row">
+    <div class="kpi"><div class="kpi-val" id="d-total">—</div><div class="kpi-lbl">Total Incidents</div><div class="kpi-trend up" id="d-trend">Loading...</div></div>
+    <div class="kpi"><div class="kpi-val" id="d-topn">—</div><div class="kpi-lbl">Top Crime Type</div><div class="kpi-trend neu" id="d-topt">—</div></div>
+    <div class="kpi"><div class="kpi-val" id="d-solved">—</div><div class="kpi-lbl">Solved / Cleared</div><div class="kpi-trend dn">Closed cases</div></div>
+    <div class="kpi"><div class="kpi-val" id="d-active">—</div><div class="kpi-lbl">Under Investigation</div><div class="kpi-trend up">Active cases</div></div>
+  </div>
+  <div class="row3">
+    <div class="card"><h3>Monthly Crime Trend</h3><div class="chart-box"><canvas id="ch-trend"></canvas></div></div>
+    <div class="card"><h3>Crime Type Distribution</h3><div class="chart-box"><canvas id="ch-type"></canvas></div></div>
+  </div>
+  <div class="row2">
+    <div class="card"><h3>Incidents by Barangay</h3><div class="chart-box short"><canvas id="ch-brgy"></canvas></div></div>
+    <div class="card"><h3>Time-of-Day Distribution</h3><div class="chart-box short"><canvas id="ch-time"></canvas></div></div>
+  </div>
+  <div class="tbl-wrap">
+    <table><thead><tr><th>#</th><th>Barangay</th><th>Incidents</th><th>Top Crime Type</th><th>Peak Period</th><th>Risk Level</th></tr></thead><tbody id="brgy-tbl"></tbody></table>
+  </div>
+</div>
+
+<div class="panel" id="panel-encode">
+  <div class="enc-form" id="enc-form">
+    <h3><i class="fa-solid fa-plus-circle"></i> Encode New Incident Record</h3>
+    <div class="field-grid">
+      <div><label for="f-date">Date of Incident *</label><input type="date" id="f-date"/></div>
+      <div><label for="f-time">Time of Incident *</label><input type="time" id="f-time"/></div>
+    </div>
+    <div class="field-grid w3">
+      <div><label for="f-type">Crime Type *</label>
+        <select id="f-type"><option value="">— Select Crime Type —</option></select>
+      </div>
+      <div><label for="f-brgy">Barangay *</label><select id="f-brgy"><option value="">— Select Barangay —</option></select></div>
+      <div><label for="f-status">Case Status</label><select id="f-status"></select></div>
+    </div>
+    <div class="field-grid">
+      <div><label for="f-loc">Location / Type of Place</label><input type="text" id="f-loc" maxlength="200" placeholder="e.g. Residential area, Near market"/></div>
+      <div><label for="f-modus">Modus Operandi</label><input type="text" id="f-modus" maxlength="200" placeholder="e.g. Snatch, Hold-up, Break-in"/></div>
+    </div>
+    <div>
+      <label>Grid Coordinates</label>
+      <div class="coords-row">
+        <div><input type="number" id="f-lat" placeholder="Latitude e.g. 14.5785" step="0.0001" min="14.50" max="14.66" aria-label="Latitude"/></div>
+        <div><input type="number" id="f-lng" placeholder="Longitude e.g. 121.1194" step="0.0001" min="121.05" max="121.20" aria-label="Longitude"/></div>
+        <button class="map-pick-btn" id="pick-btn" type="button"><i class="fa-solid fa-map-pin"></i> Pick on Map</button>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" id="save-btn" type="button"><i class="fa-solid fa-save"></i> Save Record</button>
+      <button class="btn btn-ghost" id="clear-btn" type="button"><i class="fa-solid fa-rotate-left"></i> Clear</button>
+      <span class="privacy-note"><i class="fa-solid fa-lock fa-xs"></i> Victim/suspect names not stored — Data Privacy Act of 2012</span>
+    </div>
+  </div>
+
+  <div>
+    <div class="enc-tbl-hdr">
+      <h3><i class="fa-solid fa-table"></i> Incident Records <span id="rec-count"></span></h3>
+      <div class="enc-tools">
+        <div class="search-wrap"><i class="fa-solid fa-search"></i><input type="text" placeholder="Search records..." id="search-input" maxlength="100" aria-label="Search records"/></div>
+        <button class="btn btn-ghost" id="import-btn" type="button"><i class="fa-solid fa-file-excel excel-icon"></i> Import Excel</button>
+        <span id="imp-status"></span>
+        <button class="btn btn-ghost" id="pdf-btn" type="button"><i class="fa-solid fa-file-pdf"></i> Export PDF</button>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table><thead><tr><th>ID</th><th>Date & Time</th><th>Crime Type</th><th>Barangay</th><th>Location</th><th>Modus</th><th>Status</th><th></th></tr></thead><tbody id="enc-tbl"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<div class="panel" id="panel-predict">
+  <div class="algo-cards">
+    <div class="algo-card sel" data-algo="kmeans" id="ac-kmeans">
+      <div class="algo-badge">Active</div>
+      <div class="algo-name"><i class="fa-solid fa-circle-nodes c-accent"></i> K-Means Clustering</div>
+      <div class="algo-acc c-accent">82%</div>
+      <div class="algo-albl">Cluster Accuracy</div>
+      <div class="prog"><div class="prog-fill w82 bg-accent"></div></div>
+      <div class="algo-desc">Groups nearby crime incidents into geographic clusters. Primary hotspot detection for patrol zone identification.</div>
+    </div>
+    <div class="algo-card" data-algo="lr" id="ac-lr">
+      <div class="algo-name"><i class="fa-solid fa-chart-line c-green"></i> Logistic Regression</div>
+      <div class="algo-acc c-green">79%</div>
+      <div class="algo-albl">Prediction Accuracy</div>
+      <div class="prog"><div class="prog-fill w79 bg-green"></div></div>
+      <div class="algo-desc">Predicts crime zone probability based on time, type, and location frequency patterns.</div>
+    </div>
+    <div class="algo-card" data-algo="rf" id="ac-rf">
+      <div class="algo-name"><i class="fa-solid fa-tree c-amber"></i> Random Forest</div>
+      <div class="algo-acc c-amber">85%</div>
+      <div class="algo-albl">Prediction Accuracy</div>
+      <div class="prog"><div class="prog-fill w85 bg-amber"></div></div>
+      <div class="algo-desc">Ensemble classifier. Highest accuracy for crime type classification and trend-based analysis.</div>
+    </div>
+  </div>
+  <div class="run-row">
+    <button class="run-btn" id="run-btn" type="button"><i class="fa-solid fa-play"></i> Run Hotspot Analysis</button>
+    <span class="run-status" id="run-status"></span>
+  </div>
+  <div id="analysis-results" class="hidden">
+    <div class="row2">
+      <div class="card"><h3>30-Day Incident Frequency Estimate</h3><div class="chart-box"><canvas id="ch-forecast"></canvas></div></div>
+      <div class="card"><h3>Recommended Intervention Zones</h3><div id="risk-zones"></div></div>
+    </div>
+    <div class="tbl-wrap">
+      <table><thead><tr><th>Barangay</th><th>Est. Incidents (30d)</th><th>Dominant Crime</th><th>Confidence</th><th>Intervention Priority</th></tr></thead><tbody id="pred-tbl"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<div class="panel" id="panel-audit">
+  <div class="card">
+    <div class="audit-head">
+      <div class="audit-tabs">
+        <button class="audit-inner-tab on" id="axtab-log" data-audit-tab="log"><i class="fa-solid fa-list-check"></i> Activity Log</button>
+        <button class="audit-inner-tab" id="axtab-trash" data-audit-tab="trash"><i class="fa-solid fa-trash-can"></i> Recently Deleted</button>
+      </div>
+      <span class="audit-note">Data actions only — per security policy</span>
+    </div>
+    <div id="audit-log-pane"><div id="audit-log"></div></div>
+    <div id="audit-trash-pane" class="hidden"><div id="audit-trash"></div></div>
+  </div>
+</div>
+
+</div></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+</body>
+</html>
