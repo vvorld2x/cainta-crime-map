@@ -81,7 +81,7 @@ async function encodeRecord(){
     refreshAll();
     clearForm();
     showToast('Saved: '+type+' in '+brgy,'success');
-    logAction('Record Encoded',type+' — '+brgy+' — '+date+' '+time,'add',async()=>{
+    logAction('Record Encoded',type+': '+brgy+', '+date+' '+time,'add',async()=>{
       await softDelete([saved.id]);
       await reloadData();
     });
@@ -107,7 +107,7 @@ async function deleteRecord(id){
   state.deletedBin.push({...rec,deletedAt:Date.now()});
   refreshAll();
   showToast('Record moved to Recently Deleted','success');
-  logAction('Record Deleted',rec.type+' — '+rec.barangay+' — '+rec.date+' '+rec.time,'edit',async()=>{
+  logAction('Record Deleted',rec.type+': '+rec.barangay+', '+rec.date+' '+rec.time,'edit',async()=>{
     await restore([rec.id]);
     await reloadData();
   });

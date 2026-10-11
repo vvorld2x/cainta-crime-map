@@ -5,11 +5,11 @@ import {esc,$} from './util.js';
 const DASH_KEYS=['trend','type','brgy','time'];
 
 function peakPeriod(h){
-  if(h>=21||h<2)return 'Night (9PM–2AM)';
-  if(h>=18)return 'Evening (6–9PM)';
-  if(h>=12)return 'Afternoon (12–6PM)';
-  if(h>=6)return 'Morning (6AM–12PM)';
-  return 'Dawn (2–6AM)';
+  if(h>=21||h<2)return 'Night (9PM to 2AM)';
+  if(h>=18)return 'Evening (6 to 9PM)';
+  if(h>=12)return 'Afternoon (12 to 6PM)';
+  if(h>=6)return 'Morning (6AM to 12PM)';
+  return 'Dawn (2 to 6AM)';
 }
 
 function palette(){
@@ -39,7 +39,7 @@ export function buildDashboard(){
   const active=total-solved;
   const typeCounts={};
   CRIME_TYPES.forEach(ct=>{typeCounts[ct.name]=data.filter(c=>c.type===ct.name).length;});
-  const top=Object.entries(typeCounts).sort((a,b)=>b[1]-a[1])[0]||['—',0];
+  const top=Object.entries(typeCounts).sort((a,b)=>b[1]-a[1])[0]||['None',0];
   $('d-total').textContent=String(total);
   $('d-trend').textContent=total+' total records';
   $('d-solved').textContent=String(solved);
@@ -113,9 +113,9 @@ export function buildDashboard(){
     const byType=rows.reduce((acc,c)=>{acc[c.type]=(acc[c.type]||0)+1;return acc;},{});
     const topType=Object.entries(byType).sort((a,c)=>c[1]-a[1])[0];
     const hrs=rows.map(c=>parseInt(String(c.time).split(':')[0],10)).filter(Number.isFinite);
-    const peak=hrs.length?peakPeriod(Math.round(hrs.reduce((a,h)=>a+h,0)/hrs.length)):'—';
+    const peak=hrs.length?peakPeriod(Math.round(hrs.reduce((a,h)=>a+h,0)/hrs.length)):'N/A';
     tb.insertAdjacentHTML('beforeend',
-      '<tr><td class="idx">'+(i+1)+'</td><td class="strong">'+esc(b)+'</td><td class="mono">'+n+'</td><td>'+esc(topType?topType[0]:'—')+'</td><td class="small">'+esc(peak)+'</td><td><span class="badge '+badge+'">'+risk+'</span></td></tr>'
+      '<tr><td class="idx">'+(i+1)+'</td><td class="strong">'+esc(b)+'</td><td class="mono">'+n+'</td><td>'+esc(topType?topType[0]:'None')+'</td><td class="small">'+esc(peak)+'</td><td><span class="badge '+badge+'">'+risk+'</span></td></tr>'
     );
   });
 }

@@ -141,7 +141,7 @@ function render(){
     const mult={kmeans:0.30,lr:0.25,rf:0.33}[selected];
     const est=Math.max(1,Math.round(n*mult*30));
     tb.insertAdjacentHTML('beforeend',
-      '<tr><td class="strong">'+esc(b)+'</td><td class="mono">'+est+'</td><td>'+esc(top?top[0]:'—')+'</td><td class="mono">'+conf+'%</td><td><span class="badge '+badgeOf(r)+'">'+r+'</span></td></tr>'
+      '<tr><td class="strong">'+esc(b)+'</td><td class="mono">'+est+'</td><td>'+esc(top?top[0]:'None')+'</td><td class="mono">'+conf+'%</td><td><span class="badge '+badgeOf(r)+'">'+r+'</span></td></tr>'
     );
   });
 

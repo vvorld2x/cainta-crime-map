@@ -61,7 +61,7 @@ export function buildRecentList(){
     const d=document.createElement('div');
     d.className='rec';
     d.dataset.id=String(c.id);
-    d.innerHTML='<div class="rec-dot" style="background:'+esc(c.color)+'"></div><div class="rec-body"><div class="rec-type">'+esc(c.type)+'</div><div class="rec-loc">'+esc(c.barangay)+' — '+esc(c.location)+'</div></div><div class="rec-time">'+esc(c.time)+'</div>';
+    d.innerHTML='<div class="rec-dot" style="background:'+esc(c.color)+'"></div><div class="rec-body"><div class="rec-type">'+esc(c.type)+'</div><div class="rec-loc">'+esc(c.barangay)+': '+esc(c.location)+'</div></div><div class="rec-time">'+esc(c.time)+'</div>';
     el.appendChild(d);
   });
 }
@@ -69,7 +69,7 @@ export function buildRecentList(){
 export function updateStats(){
   const n=brgyData().length;
   $('s-total').textContent=String(n);
-  $('s-hotspots').textContent=n>0?String(Math.min(8,Math.ceil(n/5))):'—';
+  $('s-hotspots').textContent=n>0?String(Math.min(8,Math.ceil(n/5))):'0';
 }
 
 export function initSidebar(){

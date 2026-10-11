@@ -60,7 +60,7 @@
   <div class="tb-right">
     <div class="tb-sep"></div>
     <button class="logout-btn" id="dark-btn" title="Switch to Dark Mode"><i class="fa-solid fa-moon"></i></button>
-    <div class="user-pill"><span id="tb-username">—</span></div>
+    <div class="user-pill"><span id="tb-username"></span></div>
     <button class="logout-btn" id="logout-btn"><i class="fa-solid fa-right-from-bracket"></i> Logout</button>
   </div>
 </div>
@@ -72,7 +72,7 @@
     <div class="sb-lbl">Statistics</div>
     <div class="stat-row">
       <div class="sc"><div class="sc-val" id="s-total">0</div><div class="sc-lbl">Total Cases</div></div>
-      <div class="sc"><div class="sc-val" id="s-hotspots">—</div><div class="sc-lbl">Hotspots</div></div>
+      <div class="sc"><div class="sc-val" id="s-hotspots">0</div><div class="sc-lbl">Hotspots</div></div>
       <div class="sc"><div class="sc-val" id="s-brgy-count">7</div><div class="sc-lbl">Barangays</div></div>
     </div>
   </div>
@@ -122,10 +122,10 @@
 
 <div class="panel" id="panel-dashboard">
   <div class="kpi-row">
-    <div class="kpi"><div class="kpi-val" id="d-total">—</div><div class="kpi-lbl">Total Incidents</div><div class="kpi-trend up" id="d-trend">Loading...</div></div>
-    <div class="kpi"><div class="kpi-val" id="d-topn">—</div><div class="kpi-lbl">Top Crime Type</div><div class="kpi-trend neu" id="d-topt">—</div></div>
-    <div class="kpi"><div class="kpi-val" id="d-solved">—</div><div class="kpi-lbl">Solved / Cleared</div><div class="kpi-trend dn">Closed cases</div></div>
-    <div class="kpi"><div class="kpi-val" id="d-active">—</div><div class="kpi-lbl">Under Investigation</div><div class="kpi-trend up">Active cases</div></div>
+    <div class="kpi"><div class="kpi-val" id="d-total">0</div><div class="kpi-lbl">Total Incidents</div><div class="kpi-trend up" id="d-trend">Loading...</div></div>
+    <div class="kpi"><div class="kpi-val" id="d-topn">0</div><div class="kpi-lbl">Top Crime Type</div><div class="kpi-trend neu" id="d-topt">None</div></div>
+    <div class="kpi"><div class="kpi-val" id="d-solved">0</div><div class="kpi-lbl">Solved / Cleared</div><div class="kpi-trend dn">Closed cases</div></div>
+    <div class="kpi"><div class="kpi-val" id="d-active">0</div><div class="kpi-lbl">Under Investigation</div><div class="kpi-trend up">Active cases</div></div>
   </div>
   <div class="row3">
     <div class="card"><h3>Monthly Crime Trend</h3><div class="chart-box"><canvas id="ch-trend"></canvas></div></div>
@@ -149,9 +149,9 @@
     </div>
     <div class="field-grid w3">
       <div><label for="f-type">Crime Type *</label>
-        <select id="f-type"><option value="">— Select Crime Type —</option></select>
+        <select id="f-type"><option value="">Select Crime Type</option></select>
       </div>
-      <div><label for="f-brgy">Barangay *</label><select id="f-brgy"><option value="">— Select Barangay —</option></select></div>
+      <div><label for="f-brgy">Barangay *</label><select id="f-brgy"><option value="">Select Barangay</option></select></div>
       <div><label for="f-status">Case Status</label><select id="f-status"></select></div>
     </div>
     <div class="field-grid">
@@ -169,7 +169,7 @@
     <div class="form-actions">
       <button class="btn btn-primary" id="save-btn" type="button"><i class="fa-solid fa-save"></i> Save Record</button>
       <button class="btn btn-ghost" id="clear-btn" type="button"><i class="fa-solid fa-rotate-left"></i> Clear</button>
-      <span class="privacy-note"><i class="fa-solid fa-lock fa-xs"></i> Victim/suspect names not stored — Data Privacy Act of 2012</span>
+      <span class="privacy-note"><i class="fa-solid fa-lock fa-xs"></i> Victim/suspect names not stored: Data Privacy Act of 2012</span>
     </div>
   </div>
 
@@ -236,7 +236,6 @@
         <button class="audit-inner-tab on" id="axtab-log" data-audit-tab="log"><i class="fa-solid fa-list-check"></i> Activity Log</button>
         <button class="audit-inner-tab" id="axtab-trash" data-audit-tab="trash"><i class="fa-solid fa-trash-can"></i> Recently Deleted</button>
       </div>
-      <span class="audit-note">Data actions only — per security policy</span>
     </div>
     <div id="audit-log-pane"><div id="audit-log"></div></div>
     <div id="audit-trash-pane" class="hidden"><div id="audit-trash"></div></div>

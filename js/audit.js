@@ -76,7 +76,7 @@ export function buildTrashBin(){
     const countdown=h>0?h+'h '+m+'m remaining':m+'m remaining';
     el.insertAdjacentHTML('beforeend',
       '<div class="trash-item"><div class="audit-icon ai-edit"><i class="fa-solid fa-trash"></i></div>'
-      +'<div class="audit-main"><div class="audit-action">'+esc(d.type)+' — '+esc(d.barangay)+'</div>'
+      +'<div class="audit-main"><div class="audit-action">'+esc(d.type)+': '+esc(d.barangay)+'</div>'
       +'<div class="audit-detail">'+esc(d.date)+' '+esc(d.time)+' · '+esc(d.location)+' · '+esc(d.modus)+'</div></div>'
       +'<div class="audit-side col"><button class="mini-btn" data-restore-id="'+esc(d.id)+'"><i class="fa-solid fa-rotate-left"></i> Restore</button>'
       +'<span class="trash-countdown">'+esc(countdown)+'</span></div></div>'
@@ -99,7 +99,7 @@ async function restoreRecord(id){
   refreshAll();
   buildTrashBin();
   showToast('Restored: '+rec.type+' in '+rec.barangay,'success');
-  logAction('Record Restored',rec.type+' — '+rec.barangay+' — '+rec.date+' '+rec.time,'edit',async()=>{
+  logAction('Record Restored',rec.type+': '+rec.barangay+', '+rec.date+' '+rec.time,'edit',async()=>{
     await softDelete([rec.id]);
     await reloadData();
   });
