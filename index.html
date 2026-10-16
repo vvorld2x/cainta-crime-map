@@ -21,8 +21,7 @@
 <body>
 
 <div id="login-screen">
-  <form class="login-right" id="login-form" autocomplete="on" novalidate>
-    <h2>Sign in</h2>
+  <form class="login-right" id="login-form" autocomplete="on" novalidate aria-label="Sign in">
     <div class="lfield">
       <label for="l-user">Email</label>
       <div class="lfield-wrap">
@@ -183,7 +182,16 @@
       </div>
     </div>
     <div class="tbl-wrap">
-      <table><thead><tr><th>ID</th><th>Date & Time</th><th>Crime Type</th><th>Barangay</th><th>Location</th><th>Modus</th><th>Status</th><th></th></tr></thead><tbody id="enc-tbl"></tbody></table>
+      <table><thead id="enc-head"><tr>
+        <th data-sort-th="id" aria-sort="descending"><button class="th-sort" type="button" data-sort-key="id">ID <span class="sort-ind"></span></button></th>
+        <th data-sort-th="datetime" aria-sort="none"><button class="th-sort" type="button" data-sort-key="datetime">Date & Time <span class="sort-ind"></span></button></th>
+        <th data-sort-th="type" aria-sort="none"><button class="th-sort" type="button" data-sort-key="type">Crime Type <span class="sort-ind"></span></button></th>
+        <th data-sort-th="barangay" aria-sort="none"><button class="th-sort" type="button" data-sort-key="barangay">Barangay <span class="sort-ind"></span></button></th>
+        <th data-sort-th="location" aria-sort="none"><button class="th-sort" type="button" data-sort-key="location">Location <span class="sort-ind"></span></button></th>
+        <th data-sort-th="modus" aria-sort="none"><button class="th-sort" type="button" data-sort-key="modus">Modus <span class="sort-ind"></span></button></th>
+        <th data-sort-th="status" aria-sort="none"><button class="th-sort" type="button" data-sort-key="status">Status <span class="sort-ind"></span></button></th>
+        <th></th>
+      </tr></thead><tbody id="enc-tbl"></tbody></table>
     </div>
   </div>
 </div>

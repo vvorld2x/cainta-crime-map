@@ -13,13 +13,48 @@ let saving=false;
 let importing=false;
 let editingId=null;
 
+const SORT_KEYS=['id','datetime','type','barangay','location','modus','status'];
+const ROW_CAP=80;
+let sortKey='id';
+let sortDir='desc';
+
+function compareRecords(a,b){
+  let result;
+  if(sortKey==='id')result=a.id-b.id;
+  else if(sortKey==='datetime')result=(a.date+' '+a.time).localeCompare(b.date+' '+b.time);
+  else result=String(a[sortKey]).localeCompare(String(b[sortKey]),undefined,{sensitivity:'base',numeric:true});
+  if(result===0)result=a.id-b.id;
+  return sortDir==='asc'?result:-result;
+}
+
+function updateSortHeaders(){
+  document.querySelectorAll('[data-sort-th]').forEach(th=>{
+    const active=th.dataset.sortTh===sortKey;
+    th.setAttribute('aria-sort',active?(sortDir==='asc'?'ascending':'descending'):'none');
+    th.querySelector('.sort-ind').textContent=active?(sortDir==='asc'?'▲':'▼'):'';
+  });
+}
+
+function changeSort(key){
+  if(!SORT_KEYS.includes(key))return;
+  if(sortKey===key){
+    sortDir=sortDir==='asc'?'desc':'asc';
+  }else{
+    sortKey=key;
+    sortDir=key==='id'||key==='datetime'?'desc':'asc';
+  }
+  buildEncTable();
+}
+
 export function buildEncTable(){
   const tb=$('enc-tbl');
   tb.replaceChildren();
   const q=clean($('search-input').value,100).toLowerCase();
   const filtered=state.crimeData.filter(c=>!q||(c.type+' '+c.barangay+' '+c.modus+' '+c.date+' '+c.location).toLowerCase().includes(q));
-  $('rec-count').textContent='('+filtered.length+' records)';
-  filtered.slice(-80).reverse().forEach(c=>{
+  const sorted=filtered.slice().sort(compareRecords);
+  $('rec-count').textContent=sorted.length>ROW_CAP?'(showing '+ROW_CAP+' of '+sorted.length+' records)':'('+sorted.length+' records)';
+  updateSortHeaders();
+  sorted.slice(0,ROW_CAP).forEach(c=>{
     const badge=CLOSED_STATUSES.includes(c.status)?'badge-g':c.status==='Ongoing Investigation'?'badge-b':'badge-a';
     tb.insertAdjacentHTML('beforeend',
       '<tr><td class="idx">#'+esc(c.id)+'</td>'
@@ -343,6 +378,10 @@ export function initEncoder(){
   $('cancel-edit-btn').addEventListener('click',cancelEdit);
   $('pick-btn').addEventListener('click',startMapPick);
   $('search-input').addEventListener('input',buildEncTable);
+  $('enc-head').addEventListener('click',e=>{
+    const btn=e.target.closest('[data-sort-key]');
+    if(btn)changeSort(btn.dataset.sortKey);
+  });
   $('import-btn').addEventListener('click',()=>$('xlsx-input').click());
   $('xlsx-input').addEventListener('change',importExcel);
   $('pdf-btn').addEventListener('click',exportPDF);
