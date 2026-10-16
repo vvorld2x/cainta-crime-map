@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://unpkg.com https://cdnjs.cloudflare.com https://cdn.sheetjs.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com https://cdnjs.cloudflare.com; font-src https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://basemaps.cartocdn.com https://server.arcgisonline.com https://unpkg.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'"/>
 <meta name="referrer" content="no-referrer"/>
 <title>Cainta</title>
@@ -45,18 +45,14 @@
 <div id="app">
 
 <div id="topbar">
-  <div class="tb-brand">
-    <div>
-      <div class="tb-title">Cainta Rizal</div>
-      <div class="tb-sub">Cainta Municipal Police Station</div>
-    </div>
+  <button class="icon-btn" id="menu-btn" aria-label="Open menu" aria-expanded="false"><i class="fa-solid fa-bars"></i></button>
+  <div class="tb-tabs">
+  <button class="ntab on" data-tab="map" aria-label="Crime Map"><i class="fa-solid fa-map"></i><span class="tab-label">Crime Map</span></button>
+  <button class="ntab" data-tab="dashboard" aria-label="Dashboard"><i class="fa-solid fa-chart-pie"></i><span class="tab-label">Dashboard</span></button>
+  <button class="ntab" data-tab="encode" id="tab-encode" aria-label="Encoder"><i class="fa-solid fa-file-pen"></i><span class="tab-label">Encoder</span></button>
+  <button class="ntab" data-tab="predict" aria-label="Hotspot Analysis"><i class="fa-solid fa-brain"></i><span class="tab-label">Hotspot Analysis</span></button>
+  <button class="ntab" data-tab="audit" id="tab-audit" aria-label="Audit Log"><i class="fa-solid fa-clock-rotate-left"></i><span class="tab-label">Audit Log</span></button>
   </div>
-  <div class="tb-sep"></div>
-  <button class="ntab on" data-tab="map"><i class="fa-solid fa-map"></i> Crime Map</button>
-  <button class="ntab" data-tab="dashboard"><i class="fa-solid fa-chart-pie"></i> Dashboard</button>
-  <button class="ntab" data-tab="encode" id="tab-encode"><i class="fa-solid fa-file-pen"></i> Encoder</button>
-  <button class="ntab" data-tab="predict"><i class="fa-solid fa-brain"></i> Hotspot Analysis</button>
-  <button class="ntab" data-tab="audit" id="tab-audit"><i class="fa-solid fa-clock-rotate-left"></i> Audit Log</button>
   <div class="tb-right">
     <div class="tb-sep"></div>
     <button class="logout-btn" id="dark-btn" title="Switch to Dark Mode"><i class="fa-solid fa-moon"></i></button>
@@ -66,8 +62,10 @@
 </div>
 
 <div id="body">
+<div id="sb-backdrop"></div>
 
 <div id="sidebar">
+  <button class="sb-close" id="sb-close" aria-label="Close menu"><i class="fa-solid fa-xmark"></i></button>
   <div class="sb-sec">
     <div class="sb-lbl">Statistics</div>
     <div class="stat-row">
@@ -94,8 +92,8 @@
 
 <div id="map-wrap">
   <div id="map"></div>
-  <div class="map-float map-layers-panel">
-    <div class="ml-label">Map Layers</div>
+  <div class="map-float map-layers-panel collapsible">
+    <div class="ml-label collapse-head">Map Layers</div>
     <div class="layer-row" data-layer="markers"><span class="layer-name">Crime Markers</span><div class="sw on" id="sw-markers"></div></div>
     <div class="layer-row" data-layer="heatmap"><span class="layer-name">Heatmap Overlay</span><div class="sw on" id="sw-heatmap"></div></div>
     <div class="layer-row" data-layer="clusters"><span class="layer-name">Hotspot Clusters</span><div class="sw on" id="sw-clusters"></div></div>
@@ -109,8 +107,8 @@
     </div>
     <button class="mc-btn mc-single" id="reset-view" title="Reset View" aria-label="Reset view"><i class="fa-solid fa-crosshairs"></i></button>
   </div>
-  <div class="map-float map-legend">
-    <div class="leg-title">Index Crimes</div>
+  <div class="map-float map-legend collapsible">
+    <div class="leg-title collapse-head">Index Crimes</div>
     <div id="legend-items"></div>
     <div class="divider"></div>
     <div class="leg-row"><div class="leg-ring" id="leg-ring-hot"></div> Hotspot Cluster</div>
@@ -142,7 +140,7 @@
 
 <div class="panel" id="panel-encode">
   <div class="enc-form" id="enc-form">
-    <h3><i class="fa-solid fa-plus-circle"></i> Encode New Incident Record</h3>
+    <h3><i class="fa-solid fa-plus-circle" id="enc-title-icon"></i> <span id="enc-title-text">Encode New Incident Record</span></h3>
     <div class="field-grid">
       <div><label for="f-date">Date of Incident *</label><input type="date" id="f-date"/></div>
       <div><label for="f-time">Time of Incident *</label><input type="time" id="f-time"/></div>
@@ -167,8 +165,9 @@
       </div>
     </div>
     <div class="form-actions">
-      <button class="btn btn-primary" id="save-btn" type="button"><i class="fa-solid fa-save"></i> Save Record</button>
+      <button class="btn btn-primary" id="save-btn" type="button"><i class="fa-solid fa-save"></i> <span id="save-label">Save Record</span></button>
       <button class="btn btn-ghost" id="clear-btn" type="button"><i class="fa-solid fa-rotate-left"></i> Clear</button>
+      <button class="btn btn-ghost hidden" id="cancel-edit-btn" type="button"><i class="fa-solid fa-xmark"></i> Cancel Edit</button>
       <span class="privacy-note"><i class="fa-solid fa-lock fa-xs"></i> Victim/suspect names not stored: Data Privacy Act of 2012</span>
     </div>
   </div>

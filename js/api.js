@@ -84,6 +84,12 @@ export async function insertOne(rec){
   return fromRow(data);
 }
 
+export async function updateOne(id,rec){
+  const {data,error}=await sb.from('incidents').update(toRow(rec)).eq('id',id).is('deleted_at',null).select(COLS).single();
+  check(error);
+  return fromRow(data);
+}
+
 export async function insertMany(recs){
   const ids=[];
   for(const part of chunks(recs,500)){

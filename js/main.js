@@ -10,10 +10,11 @@ import {initMap,buildMarkers,buildHeatmap,buildClusters,invalidateMap,LG} from '
 import {buildSelects,buildLegend,buildCrimeFilter,buildRecentList,updateStats,initSidebar} from './sidebar.js';
 import {onTab,setTab} from './tabs.js';
 import {buildDashboard,clearDashboard} from './dashboard.js';
-import {buildEncTable,initEncoder} from './encoder.js';
+import {buildEncTable,initEncoder,resetEncoder} from './encoder.js';
 import {initAnalysis,clearAnalysis} from './analysis.js';
 import {buildAuditLog,setAuditTab,initAudit} from './audit.js';
 import {toggleDark} from './theme.js';
+import {initMobile,closeDrawer} from './mobile.js';
 
 const EMAIL_RE=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 let failures=0;
@@ -117,6 +118,8 @@ async function doLogout(){
 
 async function performLogout(){
   stopIdleWatch();
+  closeDrawer();
+  resetEncoder();
   undoHandlers.clear();
   state.user=null;
   state.profile=null;
@@ -219,6 +222,7 @@ async function init(){
   initAnalysis();
   initAudit();
   bindShell();
+  initMobile();
   registerRefresh();
   registerTabs();
   onSignedOut(()=>{

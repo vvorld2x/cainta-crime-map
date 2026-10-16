@@ -4,13 +4,14 @@ import {esc,$,showToast,clean,validDate,validTime,numberInRange} from './util.js
 import {MAP} from './map.js';
 import {setTab} from './tabs.js';
 import {refreshAll} from './refresh.js';
-import {insertOne,insertMany,softDelete,restore} from './api.js';
+import {insertOne,insertMany,updateOne,softDelete,restore} from './api.js';
 import {logAction} from './audit.js';
 import {reloadData} from './data.js';
 
 let pickMode=false;
 let saving=false;
 let importing=false;
+let editingId=null;
 
 export function buildEncTable(){
   const tb=$('enc-tbl');
@@ -28,9 +29,45 @@ export function buildEncTable(){
       +'<td class="clip">'+esc(c.location)+'</td>'
       +'<td class="small">'+esc(c.modus)+'</td>'
       +'<td><span class="badge '+badge+'">'+esc(c.status)+'</span></td>'
-      +'<td><button class="btn btn-ghost btn-sm" data-del-id="'+esc(c.id)+'" aria-label="Delete record"><i class="fa-solid fa-trash"></i></button></td></tr>'
+      +'<td><div class="row-actions">'
+      +'<button class="btn btn-ghost btn-sm" data-edit-id="'+esc(c.id)+'" aria-label="Edit record"><i class="fa-solid fa-pen"></i></button>'
+      +'<button class="btn btn-ghost btn-sm" data-del-id="'+esc(c.id)+'" aria-label="Delete record"><i class="fa-solid fa-trash"></i></button>'
+      +'</div></td></tr>'
     );
   });
+}
+
+const FIELD_LABELS=[
+  ['date','Date'],
+  ['time','Time'],
+  ['type','Crime Type'],
+  ['barangay','Barangay'],
+  ['status','Status'],
+  ['location','Location'],
+  ['modus','Modus'],
+  ['lat','Latitude'],
+  ['lng','Longitude']
+];
+
+function sameValue(key,a,b){
+  if(key==='lat'||key==='lng')return Math.abs(Number(a)-Number(b))<1e-7;
+  return a===b;
+}
+
+function describeChanges(before,after){
+  return FIELD_LABELS
+    .filter(([key])=>!sameValue(key,before[key],after[key]))
+    .map(([key,label])=>label+': '+before[key]+' to '+after[key]);
+}
+
+function setEditMode(rec){
+  editingId=rec?rec.id:null;
+  $('enc-form').classList.toggle('editing',!!rec);
+  $('enc-title-text').textContent=rec?'Edit Incident Record #'+rec.id:'Encode New Incident Record';
+  $('enc-title-icon').className=rec?'fa-solid fa-pen-to-square':'fa-solid fa-plus-circle';
+  $('save-label').textContent=rec?'Update Record':'Save Record';
+  $('clear-btn').classList.toggle('hidden',!!rec);
+  $('cancel-edit-btn').classList.toggle('hidden',!rec);
 }
 
 function clearForm(){
@@ -40,8 +77,36 @@ function clearForm(){
   $('f-status').value='Under Investigation';
 }
 
-async function encodeRecord(){
-  if(saving||!canWrite())return;
+function cancelEdit(){
+  setEditMode(null);
+  clearForm();
+}
+
+export function resetEncoder(){
+  endMapPick();
+  setEditMode(null);
+  clearForm();
+  $('search-input').value='';
+}
+
+function startEdit(id){
+  if(!canWrite())return;
+  const rec=state.crimeData.find(c=>String(c.id)===String(id));
+  if(!rec)return;
+  $('f-date').value=rec.date;
+  $('f-time').value=rec.time;
+  $('f-type').value=rec.type;
+  $('f-brgy').value=rec.barangay;
+  $('f-status').value=rec.status;
+  $('f-loc').value=rec.location;
+  $('f-modus').value=rec.modus;
+  $('f-lat').value=String(rec.lat);
+  $('f-lng').value=String(rec.lng);
+  setEditMode(rec);
+  $('enc-form').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function readForm(){
   const date=$('f-date').value;
   const time=$('f-time').value;
   const type=$('f-type').value;
@@ -49,44 +114,84 @@ async function encodeRecord(){
   const status=$('f-status').value;
   if(!date||!time||!type||!brgy){
     showToast('Fill in: Date, Time, Crime Type, Barangay','error');
-    return;
+    return null;
   }
   if(!validDate(date)||!validTime(time)){
     showToast('Enter a valid date and time','error');
-    return;
+    return null;
   }
   if(!CRIME_TYPES.some(c=>c.name===type)||!BARANGAYS.includes(brgy)||!STATUSES.includes(status)){
     showToast('Invalid selection','error');
-    return;
+    return null;
   }
   const lat=numberInRange($('f-lat').value,BOUNDS.latMin,BOUNDS.latMax);
   const lng=numberInRange($('f-lng').value,BOUNDS.lngMin,BOUNDS.lngMax);
   if(Number.isNaN(lat)||Number.isNaN(lng)){
     showToast('Coordinates are outside the Cainta area','error');
-    return;
+    return null;
   }
   const base=BRGY_COORDS[brgy]||CAINTA;
-  const rec={
+  return {
     date,time,type,barangay:brgy,status,
     location:clean($('f-loc').value,LIMITS.maxText)||'Not specified',
     modus:clean($('f-modus').value,LIMITS.maxText)||'Unknown',
     lat:lat===null?base[0]:lat,
     lng:lng===null?base[1]:lng
   };
+}
+
+async function updateRecord(rec){
+  const before=state.crimeData.find(c=>c.id===editingId);
+  if(!before){
+    showToast('This record is no longer available','error');
+    cancelEdit();
+    return;
+  }
+  const changes=describeChanges(before,rec);
+  if(!changes.length){
+    showToast('No changes to save','error');
+    return;
+  }
+  const snapshot={
+    date:before.date,time:before.time,type:before.type,barangay:before.barangay,
+    status:before.status,location:before.location,modus:before.modus,lat:before.lat,lng:before.lng
+  };
+  const id=before.id;
+  const updated=await updateOne(id,rec);
+  state.crimeData=state.crimeData.map(c=>c.id===id?updated:c);
+  refreshAll();
+  cancelEdit();
+  showToast('Record #'+id+' updated','success');
+  const detail=('#'+id+' '+before.type+', '+before.barangay+'. '+changes.join('; ')).slice(0,500);
+  logAction('Record Edited',detail,'edit',async()=>{
+    await updateOne(id,snapshot);
+    await reloadData();
+  });
+}
+
+async function createRecord(rec){
+  const saved=await insertOne(rec);
+  state.crimeData.push(saved);
+  refreshAll();
+  clearForm();
+  showToast('Saved: '+rec.type+' in '+rec.barangay,'success');
+  logAction('Record Encoded',rec.type+': '+rec.barangay+', '+rec.date+' '+rec.time,'add',async()=>{
+    await softDelete([saved.id]);
+    await reloadData();
+  });
+}
+
+async function saveRecord(){
+  if(saving||!canWrite())return;
+  const rec=readForm();
+  if(!rec)return;
   saving=true;
   $('save-btn').disabled=true;
   try{
-    const saved=await insertOne(rec);
-    state.crimeData.push(saved);
-    refreshAll();
-    clearForm();
-    showToast('Saved: '+type+' in '+brgy,'success');
-    logAction('Record Encoded',type+': '+brgy+', '+date+' '+time,'add',async()=>{
-      await softDelete([saved.id]);
-      await reloadData();
-    });
+    if(editingId!==null)await updateRecord(rec);
+    else await createRecord(rec);
   }catch(e){
-    showToast('Could not save record','error');
+    showToast(editingId!==null?'Could not update record':'Could not save record','error');
   }finally{
     saving=false;
     $('save-btn').disabled=false;
@@ -105,6 +210,7 @@ async function deleteRecord(id){
   }
   state.crimeData=state.crimeData.filter(c=>c.id!==rec.id);
   state.deletedBin.push({...rec,deletedAt:Date.now()});
+  if(editingId===rec.id)cancelEdit();
   refreshAll();
   showToast('Record moved to Recently Deleted','success');
   logAction('Record Deleted',rec.type+': '+rec.barangay+', '+rec.date+' '+rec.time,'edit',async()=>{
@@ -232,16 +338,22 @@ function exportPDF(){
 }
 
 export function initEncoder(){
-  $('save-btn').addEventListener('click',encodeRecord);
+  $('save-btn').addEventListener('click',saveRecord);
   $('clear-btn').addEventListener('click',clearForm);
+  $('cancel-edit-btn').addEventListener('click',cancelEdit);
   $('pick-btn').addEventListener('click',startMapPick);
   $('search-input').addEventListener('input',buildEncTable);
   $('import-btn').addEventListener('click',()=>$('xlsx-input').click());
   $('xlsx-input').addEventListener('change',importExcel);
   $('pdf-btn').addEventListener('click',exportPDF);
   $('enc-tbl').addEventListener('click',e=>{
-    const btn=e.target.closest('[data-del-id]');
-    if(btn)deleteRecord(btn.dataset.delId);
+    const del=e.target.closest('[data-del-id]');
+    if(del){
+      deleteRecord(del.dataset.delId);
+      return;
+    }
+    const edit=e.target.closest('[data-edit-id]');
+    if(edit)startEdit(edit.dataset.editId);
   });
   MAP.on('click',e=>{
     if(!pickMode)return;
