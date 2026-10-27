@@ -5,7 +5,7 @@ import {esc,$} from './util.js';
 
 export let MAP=null;
 export const LG={};
-const LS={markers:true,heatmap:true,clusters:true};
+const LS={markers:true,heatmap:true,clusters:true,hideAnalysis:false};
 const tiles={};
 
 function cartoUrl(path){
@@ -43,10 +43,25 @@ export function initMap(){
   $('leg-ring-int').style.borderStyle='dashed';
 }
 
+function syncClusters(){
+  const show=LS.clusters&&!LS.hideAnalysis;
+  const present=MAP.hasLayer(LG.clusters);
+  if(show&&!present)MAP.addLayer(LG.clusters);
+  if(!show&&present)MAP.removeLayer(LG.clusters);
+}
+
 function toggleLayer(name){
+  if(name==='hideAnalysis'){
+    LS.hideAnalysis=!LS.hideAnalysis;
+    syncClusters();
+    $('sw-hideAnalysis').classList.toggle('on',LS.hideAnalysis);
+    return;
+  }
   if(!LG[name])return;
   LS[name]=!LS[name];
-  if(LS[name])MAP.addLayer(LG[name]);else MAP.removeLayer(LG[name]);
+  if(name==='clusters')syncClusters();
+  else if(LS[name])MAP.addLayer(LG[name]);
+  else MAP.removeLayer(LG[name]);
   $('sw-'+name).classList.toggle('on',LS[name]);
 }
 

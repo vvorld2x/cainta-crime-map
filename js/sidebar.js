@@ -36,8 +36,9 @@ export function buildLegend(){
 export function buildCrimeFilter(){
   const el=$('cf-list');
   el.replaceChildren();
+  const scope=brgyData();
   CRIME_TYPES.forEach(ct=>{
-    const cnt=state.crimeData.filter(c=>c.type===ct.name).length;
+    const cnt=scope.filter(c=>c.type===ct.name).length;
     const div=document.createElement('div');
     div.className='cf'+(state.activeTypes.has(ct.name)?' on':'');
     div.dataset.type=ct.name;
