@@ -1,6 +1,6 @@
 import {CAINTA,BRGY_COORDS,CLOSED_STATUSES} from './constants.js';
 import {CARTO_KEY} from './config.js';
-import {state,visibleData,brgyData} from './state.js';
+import {state,visibleData} from './state.js';
 import {esc,$} from './util.js';
 
 export let MAP=null;
@@ -137,21 +137,6 @@ export function kmeans(pts,k,iters){
     });
   }
   return {centers,sizes:centers.map((_,j)=>pts.filter((_,i)=>asgn[i]===j).length)};
-}
-
-export function buildClusters(){
-  LG.clusters.clearLayers();
-  const pts=brgyData();
-  if(!pts.length)return;
-  const {centers,sizes}=kmeans(pts,8,25);
-  centers.forEach((c,i)=>{
-    L.circle([c.lat,c.lng],{radius:45+sizes[i]*1.8,fillColor:'#E8323A',fillOpacity:.07,color:'#E8323A',weight:1.5,dashArray:'5,7',interactive:false}).addTo(LG.clusters);
-    L.circleMarker([c.lat,c.lng],{radius:4,fillColor:'#E8323A',color:'#fff',weight:2,fillOpacity:1}).addTo(LG.clusters).bindPopup(
-      '<div class="pu-type" style="color:#E8323A">Hotspot Cluster '+(i+1)+'</div>'
-      +'<div class="pu-row"><span>Incidents in cluster</span><span>'+sizes[i]+'</span></div>'
-      +'<div class="pu-row"><span>Algorithm</span><span>K-Means</span></div>'
-    );
-  });
 }
 
 export function focusBarangay(name){

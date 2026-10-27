@@ -6,7 +6,7 @@ import {signIn,signOut,currentSessionUser,onSignedOut} from './auth.js';
 import {fetchProfile,purgeExpired} from './api.js';
 import {reloadData} from './data.js';
 import {onRefresh,refreshAll} from './refresh.js';
-import {initMap,buildMarkers,buildHeatmap,buildClusters,invalidateMap,LG} from './map.js';
+import {initMap,buildMarkers,buildHeatmap,invalidateMap,LG} from './map.js';
 import {buildSelects,buildLegend,buildCrimeFilter,buildRecentList,updateStats,initSidebar} from './sidebar.js';
 import {onTab,setTab} from './tabs.js';
 import {buildDashboard,clearDashboard} from './dashboard.js';
@@ -192,7 +192,6 @@ function registerRefresh(){
   onRefresh(buildRecentList);
   onRefresh(buildMarkers);
   onRefresh(buildHeatmap);
-  onRefresh(buildClusters);
   onRefresh(updateStats);
   onRefresh(buildEncTable);
 }

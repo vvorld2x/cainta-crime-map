@@ -197,8 +197,8 @@
 </div>
 
 <div class="panel" id="panel-predict">
-  <div class="algo-cards">
-    <div class="algo-card sel" data-algo="kmeans" id="ac-kmeans">
+  <div class="algo-cards" role="radiogroup" aria-label="Analysis method">
+    <div class="algo-card sel" data-algo="kmeans" id="ac-kmeans" role="radio" tabindex="0" aria-checked="true">
       <div class="algo-badge">Active</div>
       <div class="algo-name"><i class="fa-solid fa-circle-nodes c-accent"></i> K-Means Clustering</div>
       <div class="algo-acc c-accent">82%</div>
@@ -206,14 +206,14 @@
       <div class="prog"><div class="prog-fill w82 bg-accent"></div></div>
       <div class="algo-desc">Groups nearby crime incidents into geographic clusters. Primary hotspot detection for patrol zone identification.</div>
     </div>
-    <div class="algo-card" data-algo="lr" id="ac-lr">
+    <div class="algo-card" data-algo="lr" id="ac-lr" role="radio" tabindex="0" aria-checked="false">
       <div class="algo-name"><i class="fa-solid fa-chart-line c-green"></i> Logistic Regression</div>
       <div class="algo-acc c-green">79%</div>
       <div class="algo-albl">Prediction Accuracy</div>
       <div class="prog"><div class="prog-fill w79 bg-green"></div></div>
       <div class="algo-desc">Predicts crime zone probability based on time, type, and location frequency patterns.</div>
     </div>
-    <div class="algo-card" data-algo="rf" id="ac-rf">
+    <div class="algo-card" data-algo="rf" id="ac-rf" role="radio" tabindex="0" aria-checked="false">
       <div class="algo-name"><i class="fa-solid fa-tree c-amber"></i> Random Forest</div>
       <div class="algo-acc c-amber">85%</div>
       <div class="algo-albl">Prediction Accuracy</div>
@@ -221,11 +221,8 @@
       <div class="algo-desc">Ensemble classifier. Highest accuracy for crime type classification and trend-based analysis.</div>
     </div>
   </div>
-  <div class="run-row">
-    <button class="run-btn" id="run-btn" type="button"><i class="fa-solid fa-play"></i> Run Hotspot Analysis</button>
-    <span class="run-status" id="run-status"></span>
-  </div>
-  <div id="analysis-results" class="hidden">
+  <p class="algo-note">The selected method updates automatically and is shown on the Crime Map under Hotspot Clusters.</p>
+  <div id="analysis-results">
     <div class="row2">
       <div class="card"><h3>30-Day Incident Frequency Estimate</h3><div class="chart-box"><canvas id="ch-forecast"></canvas></div></div>
       <div class="card"><h3>Recommended Intervention Zones</h3><div id="risk-zones"></div></div>
