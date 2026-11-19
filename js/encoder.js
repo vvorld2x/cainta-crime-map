@@ -95,8 +95,18 @@ function describeChanges(before,after){
     .map(([key,label])=>label+': '+before[key]+' to '+after[key]);
 }
 
+function setEncoderOpen(open){
+  $('enc-form').classList.toggle('hidden',!open);
+  const t=$('enc-toggle');
+  t.setAttribute('aria-expanded',String(open));
+  t.title=open?'Hide encoder form':'Show encoder form';
+  t.setAttribute('aria-label',t.title);
+  t.firstElementChild.className=open?'fa-solid fa-chevron-up':'fa-solid fa-chevron-down';
+}
+
 function setEditMode(rec){
   editingId=rec?rec.id:null;
+  if(rec)setEncoderOpen(true);
   $('enc-form').classList.toggle('editing',!!rec);
   $('enc-title-text').textContent=rec?'Edit Incident Record #'+rec.id:'Encode New Incident Record';
   $('enc-title-icon').className=rec?'fa-solid fa-pen-to-square':'fa-solid fa-plus-circle';
@@ -377,6 +387,7 @@ export function initEncoder(){
   $('clear-btn').addEventListener('click',clearForm);
   $('cancel-edit-btn').addEventListener('click',cancelEdit);
   $('pick-btn').addEventListener('click',startMapPick);
+  $('enc-toggle').addEventListener('click',()=>setEncoderOpen($('enc-form').classList.contains('hidden')));
   $('search-input').addEventListener('input',buildEncTable);
   $('enc-head').addEventListener('click',e=>{
     const btn=e.target.closest('[data-sort-key]');

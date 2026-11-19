@@ -369,3 +369,7 @@ body.dark .icon-btn,body.dark .sb-close{background:var(--mist3);border-color:var
 .heat-legend{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--ghost);margin-top:8px;justify-content:flex-end}
 .heat-bar{width:90px;height:8px;border-radius:4px;background:linear-gradient(90deg,rgba(232,50,58,.18),rgba(232,50,58,1))}
 body.dark .ctl-btn{background:var(--mist3);border-color:var(--wire)}
+.enc-toggle{display:flex;align-items:center;justify-content:center;width:44px;height:24px;margin:-8px auto 12px;border:1px solid var(--wire);border-radius:12px;background:#fff;color:var(--ghost);cursor:pointer;font-size:11px;box-shadow:var(--sh)}
+.enc-toggle:hover{color:var(--accent);border-color:var(--accent)}
+.enc-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+body.dark .enc-toggle{background:#1E2732;border-color:var(--wire)}
