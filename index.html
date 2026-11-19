@@ -14,6 +14,8 @@
 <link rel="stylesheet" href="css/styles.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script type="module" src="js/main.js"></script>
@@ -125,12 +127,37 @@
     <div class="kpi"><div class="kpi-val" id="d-active">0</div><div class="kpi-lbl">Under Investigation</div><div class="kpi-trend up">Active cases</div></div>
   </div>
   <div class="row3">
-    <div class="card"><h3>Monthly Crime Trend</h3><div class="chart-box"><canvas id="ch-trend"></canvas></div></div>
+    <div class="card"><h3>Crime Trend Over Time</h3>
+      <div class="ctl-row">
+        <label class="ctl">Group by<select id="tr-gran"><option value="month">Month</option><option value="week">Week</option><option value="day">Day</option></select></label>
+        <label class="ctl">Period<select id="tr-range"></select></label>
+        <label class="ctl">Crime type<select id="tr-type"></select></label>
+        <div class="ctl-btns hidden" id="tr-zoombar">
+          <button type="button" class="ctl-btn" id="tr-zin" title="Zoom in" aria-label="Zoom in"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+          <button type="button" class="ctl-btn" id="tr-zout" title="Zoom out" aria-label="Zoom out"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
+          <button type="button" class="ctl-btn" id="tr-pl" title="Pan left" aria-label="Pan left"><i class="fa-solid fa-arrow-left"></i></button>
+          <button type="button" class="ctl-btn" id="tr-pr" title="Pan right" aria-label="Pan right"><i class="fa-solid fa-arrow-right"></i></button>
+          <button type="button" class="ctl-btn" id="tr-reset" title="Reset zoom" aria-label="Reset zoom"><i class="fa-solid fa-rotate-left"></i></button>
+        </div>
+      </div>
+      <div class="crumb hidden" id="tr-crumb"></div>
+      <div class="chart-box"><canvas id="ch-trend"></canvas></div>
+      <p class="chart-note" id="tr-insight"></p>
+      <p class="chart-note dim">Click a bar to see that month or week day by day. Drag the chart to pan; Ctrl + scroll or pinch to zoom.</p>
+    </div>
     <div class="card"><h3>Crime Type Distribution</h3><div class="chart-box"><canvas id="ch-type"></canvas></div></div>
   </div>
   <div class="row2">
     <div class="card"><h3>Incidents by Barangay</h3><div class="chart-box short"><canvas id="ch-brgy"></canvas></div></div>
-    <div class="card"><h3>Time-of-Day Distribution</h3><div class="chart-box short"><canvas id="ch-time"></canvas></div></div>
+    <div class="card"><h3>When Incidents Happen</h3>
+      <div class="ctl-row">
+        <label class="ctl">View<select id="tm-view"><option value="hour">By hour</option><option value="period">By time of day</option><option value="heat">Weekday x hour heatmap</option></select></label>
+        <label class="ctl">Crime type<select id="tm-type"></select></label>
+      </div>
+      <div class="chart-box short" id="tm-chart-box"><canvas id="ch-time"></canvas></div>
+      <div id="tm-heat" class="hidden"></div>
+      <p class="chart-note" id="tm-note"></p>
+    </div>
   </div>
   <div class="tbl-wrap">
     <table><thead><tr><th>#</th><th>Barangay</th><th>Incidents</th><th>Top Crime Type</th><th>Peak Period</th><th>Risk Level</th></tr></thead><tbody id="brgy-tbl"></tbody></table>
@@ -201,34 +228,38 @@
     <div class="algo-card sel" data-algo="kmeans" id="ac-kmeans" role="radio" tabindex="0" aria-checked="true">
       <div class="algo-badge">Active</div>
       <div class="algo-name"><i class="fa-solid fa-circle-nodes c-accent"></i> K-Means Clustering</div>
-      <div class="algo-acc c-accent">82%</div>
-      <div class="algo-albl">Cluster Accuracy</div>
-      <div class="prog"><div class="prog-fill w82 bg-accent"></div></div>
-      <div class="algo-desc">Groups nearby crime incidents into geographic clusters. Primary hotspot detection for patrol zone identification.</div>
+      <div class="algo-acc c-accent" id="acc-kmeans">-</div>
+      <div class="algo-albl">Newest incidents caught by hotspots</div>
+      <div class="prog"><div class="prog-fill bg-accent" id="bar-kmeans" style="width:0"></div></div>
+      <div class="algo-meta" id="meta-kmeans">Open this tab to run the evaluation.</div>
+      <div class="algo-desc">Groups nearby incidents into geographic clusters to find hotspots for patrol planning.</div>
     </div>
     <div class="algo-card" data-algo="lr" id="ac-lr" role="radio" tabindex="0" aria-checked="false">
       <div class="algo-name"><i class="fa-solid fa-chart-line c-green"></i> Logistic Regression</div>
-      <div class="algo-acc c-green">79%</div>
-      <div class="algo-albl">Prediction Accuracy</div>
-      <div class="prog"><div class="prog-fill w79 bg-green"></div></div>
-      <div class="algo-desc">Predicts crime zone probability based on time, type, and location frequency patterns.</div>
+      <div class="algo-acc c-green" id="acc-lr">-</div>
+      <div class="algo-albl">Correct on later, unseen periods</div>
+      <div class="prog"><div class="prog-fill bg-green" id="bar-lr" style="width:0"></div></div>
+      <div class="algo-meta" id="meta-lr">Open this tab to run the evaluation.</div>
+      <div class="algo-desc">Estimates each barangay’s chance of above-median activity in the next 30 days from its recent history.</div>
     </div>
     <div class="algo-card" data-algo="rf" id="ac-rf" role="radio" tabindex="0" aria-checked="false">
       <div class="algo-name"><i class="fa-solid fa-tree c-amber"></i> Random Forest</div>
-      <div class="algo-acc c-amber">85%</div>
-      <div class="algo-albl">Prediction Accuracy</div>
-      <div class="prog"><div class="prog-fill w85 bg-amber"></div></div>
-      <div class="algo-desc">Ensemble classifier. Highest accuracy for crime type classification and trend-based analysis.</div>
+      <div class="algo-acc c-amber" id="acc-rf">-</div>
+      <div class="algo-albl">Crime types named correctly (unseen)</div>
+      <div class="prog"><div class="prog-fill bg-amber" id="bar-rf" style="width:0"></div></div>
+      <div class="algo-meta" id="meta-rf">Open this tab to run the evaluation.</div>
+      <div class="algo-desc">Ensemble of decision trees that guesses the crime type from time, weekday and place.</div>
     </div>
   </div>
-  <p class="algo-note">The selected method updates automatically and is shown on the Crime Map under Hotspot Clusters.</p>
+  <p class="algo-note">Accuracy figures are measured: each method learns from the older records and is tested on the newest ones it never saw. The selected method is also drawn on the Crime Map under Hotspot Clusters.</p>
   <div id="analysis-results">
     <div class="row2">
-      <div class="card"><h3>30-Day Incident Frequency Estimate</h3><div class="chart-box"><canvas id="ch-forecast"></canvas></div></div>
+      <div class="card"><h3>Weekly Incidents and Simple Baseline</h3><div class="chart-box"><canvas id="ch-forecast"></canvas></div><p class="chart-note" id="forecast-note"></p></div>
       <div class="card"><h3>Recommended Intervention Zones</h3><div id="risk-zones"></div></div>
     </div>
     <div class="tbl-wrap">
-      <table><thead><tr><th>Barangay</th><th>Est. Incidents (30d)</th><th>Dominant Crime</th><th>Confidence</th><th>Intervention Priority</th></tr></thead><tbody id="pred-tbl"></tbody></table>
+      <table><thead><tr><th>Barangay</th><th>Est. Incidents (30d)</th><th>Dominant Crime</th><th id="pred-th-score">Score</th><th>Intervention Priority</th></tr></thead><tbody id="pred-tbl"></tbody></table>
+      <p class="chart-note" id="score-note" style="padding:0 14px 12px"></p>
     </div>
   </div>
 </div>

@@ -1,23 +1,35 @@
 import {BARANGAYS,BRGY_COORDS,CRIME_TYPES} from './constants.js';
 import {state,brgyData} from './state.js';
 import {esc,$} from './util.js';
-import {LG,kmeans} from './map.js';
+import {LG} from './map.js';
 import {onRefresh} from './refresh.js';
 import {onTab} from './tabs.js';
+import {prepare,fitClusters,evalKMeans,evalRisk,evalForest,hour12,MIN_KMEANS,MIN_RF} from './ml.js';
 
 const ALGOS=['kmeans','lr','rf'];
 const COLORS={kmeans:'#1A5CFF',lr:'#15803D',rf:'#D97706'};
-const CONFIDENCE={kmeans:72,lr:68,rf:76};
-const MULTIPLIER={kmeans:0.30,lr:0.25,rf:0.33};
-let selected='kmeans';
+const TYPE_NAMES=CRIME_TYPES.map(c=>c.name);
+const DAY=86400000;
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-function rank(data){
-  const counts={};
-  BARANGAYS.forEach(b=>{counts[b]=0;});
-  data.forEach(c=>{
-    if(c.barangay in counts)counts[c.barangay]++;
-  });
-  return Object.entries(counts).filter(([,n])=>n>0).sort((a,b)=>b[1]-a[1]);
+let selected='kmeans';
+let results=null;
+let resultsKey=null;
+let evalToken=0;
+let evaluating=false;
+const fitMemo=new Map();
+let keyMemo={ref:null,len:-1,key:''};
+
+function pct(v){return Math.round(v*100)+'%';}
+
+function dataKey(data){
+  if(keyMemo.ref===data&&keyMemo.len===data.length)return keyMemo.key;
+  let h=2166136261;
+  const s=data.length+'|'+data.map(c=>[c.id,c.date,c.time,c.type,c.barangay,c.lat,c.lng].join(',')).join(';');
+  for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}
+  const key=String(h>>>0)+':'+data.length;
+  keyMemo={ref:data,len:data.length,key};
+  return key;
 }
 
 function riskOf(i,len){
@@ -28,69 +40,221 @@ function badgeOf(r){
   return r==='High'?'badge-r':r==='Medium'?'badge-a':'badge-g';
 }
 
-function forecastSeries(data){
-  const total=data.length;
-  const days=Array.from({length:30},(_,i)=>'D'+(i+1));
-  let values;
-  if(selected==='kmeans'){
-    const avg=total/30;
-    values=days.map((_,i)=>Math.max(0,Math.round(avg*(0.7+0.6*Math.sin(i/4)+0.2*Math.sin(i/1.5)))));
-  }else if(selected==='lr'){
-    const hrs=new Array(24).fill(0);
-    data.forEach(c=>{
-      const h=parseInt(String(c.time).split(':')[0],10);
-      if(h>=0&&h<24)hrs[h]++;
-    });
-    const peak=hrs.indexOf(Math.max(...hrs));
-    values=days.map((_,i)=>{
-      const t=(i-15)/8;
-      const base=total/30*(0.6+0.4/(1+Math.exp(-t)));
-      return Math.max(0,Math.round(base*(0.8+0.4*(peak>18||peak<6?Math.sin(i/3):Math.cos(i/4)))));
-    });
-  }else{
-    const weights=CRIME_TYPES.map(ct=>data.filter(c=>c.type===ct.name).length/Math.max(total,1));
-    values=days.map((_,i)=>Math.max(0,Math.round(weights.reduce((s,w,ti)=>s+w*(total/30)*(0.5+0.5*Math.sin(i/5+ti)),0))));
-  }
-  return {days,values};
+function dayLabel(day){
+  const d=new Date(day*DAY);
+  return MON[d.getUTCMonth()]+' '+d.getUTCDate()+', '+d.getUTCFullYear();
 }
 
-function drawOverlay(){
-  LG.clusters.clearLayers();
-  const pts=brgyData();
-  if(!pts.length)return;
-  if(selected==='kmeans'){
-    const {centers,sizes}=kmeans(pts,Math.min(pts.length,8),25);
-    centers.forEach((c,i)=>{
-      L.circle([c.lat,c.lng],{radius:45+sizes[i]*1.8,fillColor:'#E8323A',fillOpacity:.07,color:'#E8323A',weight:1.5,dashArray:'5,7',interactive:false}).addTo(LG.clusters);
-      L.circleMarker([c.lat,c.lng],{radius:4,fillColor:'#E8323A',color:'#fff',weight:2,fillOpacity:1}).addTo(LG.clusters).bindPopup(
-        '<div class="pu-type" style="color:#E8323A">Hotspot Cluster '+(i+1)+'</div>'
-        +'<div class="pu-row"><span>Incidents in cluster</span><span>'+sizes[i]+'</span></div>'
-        +'<div class="pu-row"><span>Algorithm</span><span>K-Means</span></div>'
-      );
-    });
-  }else if(selected==='lr'){
-    rank(pts).slice(0,3).forEach(([b],i)=>{
-      if(!BRGY_COORDS[b])return;
-      L.circle(BRGY_COORDS[b],{radius:250-i*50,fillColor:'#15803D',fillOpacity:.08,color:'#15803D',weight:1.5,dashArray:'6,4',interactive:false}).addTo(LG.clusters);
-      L.circleMarker(BRGY_COORDS[b],{radius:4,fillColor:'#15803D',color:'#fff',weight:2,fillOpacity:1}).addTo(LG.clusters).bindPopup(
-        '<div class="pu-type" style="color:#15803D">High Probability Zone</div><div class="pu-row"><span>Barangay</span><span>'+esc(b)+'</span></div>'
-        +'<div class="pu-row"><span>Algorithm</span><span>Logistic Regression</span></div>'
-      );
-    });
-  }else{
-    CRIME_TYPES.forEach(ct=>{
-      const group=pts.filter(c=>c.type===ct.name);
-      if(group.length<2)return;
-      const latC=group.reduce((s,p)=>s+p.lat,0)/group.length;
-      const lngC=group.reduce((s,p)=>s+p.lng,0)/group.length;
-      L.circle([latC,lngC],{radius:120+group.length*10,fillColor:ct.color,fillOpacity:.07,color:ct.color,weight:1.5,dashArray:'4,6',interactive:false}).addTo(LG.clusters);
-      L.circleMarker([latC,lngC],{radius:4,fillColor:ct.color,color:'#fff',weight:2,fillOpacity:1}).addTo(LG.clusters).bindPopup(
-        '<div class="pu-type" style="color:'+esc(ct.color)+'">'+esc(ct.name)+' Density Zone</div><div class="pu-row"><span>Incidents</span><span>'+group.length+'</span></div>'
-        +'<div class="pu-row"><span>Algorithm</span><span>Random Forest</span></div>'
-      );
-    });
+/* ------------------------- per-barangay facts (all measured) ------------------------- */
+
+function barangayStats(P){
+  const stats={};
+  BARANGAYS.forEach(b=>{stats[b]={n:0,recent:0,types:{}};});
+  if(!P.length)return stats;
+  const dMax=P[P.length-1].day;
+  const dMin=P[0].day;
+  const span=Math.max(1,Math.min(180,dMax-dMin+1));
+  P.forEach(p=>{
+    const s=stats[p.barangay];
+    if(!s)return;
+    s.n++;
+    if(p.day>dMax-span)s.recent++;
+    s.types[p.type]=(s.types[p.type]||0)+1;
+  });
+  BARANGAYS.forEach(b=>{
+    const s=stats[b];
+    s.est=s.recent/span*30;
+    const top=Object.entries(s.types).sort((a,c)=>c[1]-a[1])[0];
+    s.top=top?top[0]:'None';
+    s.topShare=top&&s.n?top[1]/s.n:0;
+  });
+  return stats;
+}
+
+/* ------------------------------ algorithm cards ------------------------------ */
+
+function setCard(id,valueText,frac,meta,warn){
+  const acc=$('acc-'+id),bar=$('bar-'+id),m=$('meta-'+id);
+  if(acc)acc.textContent=valueText;
+  if(bar)bar.style.width=Math.max(0,Math.min(1,frac||0))*100+'%';
+  if(m){
+    m.textContent=meta;
+    m.classList.toggle('warn',!!warn);
   }
 }
+
+function renderCards(){
+  if(!results){
+    if(evaluating){
+      ALGOS.forEach(a=>setCard(a,'...',0,'Testing on your records. This takes a few seconds.',false));
+    }else{
+      ALGOS.forEach(a=>setCard(a,'-',0,'Open this tab to run the evaluation.',false));
+    }
+    return;
+  }
+  const k=results.kmeans;
+  if(!k.ok){
+    setCard('kmeans','N/A',0,'Needs at least '+MIN_KMEANS+' records. You have '+k.have+'.',true);
+  }else{
+    const lift=k.lift?k.lift.toFixed(1)+'x better than random placement. ':'';
+    setCard('kmeans',pct(k.value),k.value,
+      'Of the '+k.nTest+' newest incidents, '+pct(k.value)+' (\u00B1'+Math.round(k.ci*100)+') landed inside hotspots found from the older '+k.nTrain+'. '
+      +'Those hotspots cover '+pct(k.area)+' of the mapped area, '+lift+'Cluster quality (silhouette): '+k.silhouette.toFixed(2)+', k='+k.k+'.',
+      false);
+  }
+  const l=results.lr;
+  if(!l.ok){
+    setCard('lr','N/A',0,'Needs about '+l.needDays+' days of history. You have '+l.haveDays+'.',true);
+  }else{
+    const beats=l.value>l.baseline+0.005;
+    setCard('lr',pct(l.value),l.value,
+      'Right on '+pct(l.value)+' (\u00B1'+Math.round(l.ci*100)+') of '+l.nTest+' later barangay/30-day cases it never saw in training. '
+      +'Always guessing the common answer scores '+pct(l.baseline)+'; the simple "busy last month" rule scores '+pct(l.naive)+'.'
+      +(beats?'':' The model is not clearly beating the baseline yet.'),
+      !beats);
+  }
+  const r=results.rf;
+  if(!r.ok){
+    setCard('rf','N/A',0,'Needs at least '+MIN_RF+' records. You have '+r.have+'.',true);
+  }else{
+    const beats=r.value>r.baseline+0.005;
+    setCard('rf',pct(r.value),r.value,
+      'Named the exact crime type for '+pct(r.value)+' (\u00B1'+Math.round(r.ci*100)+') of '+r.nTest+' held-out incidents; the right type was in its top 3 picks '+pct(r.top3)+'. '
+      +'Always guessing "'+r.majorityType+'" scores '+pct(r.baseline)+'.'
+      +(beats?'':' The model is not clearly beating the baseline yet.'),
+      !beats);
+  }
+}
+
+/* ----------------------------------- evaluation ----------------------------------- */
+
+const tick=()=>new Promise(r=>setTimeout(r,20));
+
+async function ensureEvaluation(){
+  const data=state.crimeData;
+  const key=dataKey(data);
+  if(key===resultsKey&&(results||evaluating))return;
+  resultsKey=key;
+  results=null;
+  evaluating=true;
+  const token=++evalToken;
+  renderCards();
+  await tick();
+  if(token!==evalToken)return;
+  const P=prepare(data);
+  const out={};
+  out.kmeans=evalKMeans(P);
+  await tick();
+  if(token!==evalToken)return;
+  out.lr=evalRisk(P,BARANGAYS);
+  await tick();
+  if(token!==evalToken)return;
+  out.rf=evalForest(P,TYPE_NAMES);
+  if(token!==evalToken)return;
+  results=out;
+  evaluating=false;
+  renderCards();
+  renderTable();
+  renderZones();
+  drawOverlay();
+}
+
+/* ------------------------------ ranking and table ------------------------------ */
+
+function getFit(P,scope){
+  const mk=dataKey(state.crimeData)+'|'+scope;
+  if(fitMemo.has(mk))return fitMemo.get(mk);
+  if(fitMemo.size>6)fitMemo.clear();
+  const fit=fitClusters(P);
+  fitMemo.set(mk,fit);
+  return fit;
+}
+
+function rankRows(){
+  const P=prepare(state.crimeData);
+  const stats=barangayStats(P);
+  const rows=BARANGAYS.filter(b=>stats[b].n>0).map(b=>({b,s:stats[b]}));
+  const hot={};
+  if(selected==='kmeans'&&P.length){
+    getFit(P,'all').clusters.forEach(c=>{
+      if(!c.hotspot)return;
+      c.members.forEach(m=>{hot[m.barangay]=(hot[m.barangay]||0)+1;});
+    });
+  }
+  rows.forEach(r=>{
+    if(selected==='kmeans'){
+      r.inHot=hot[r.b]||0;
+      r.score=r.s.n?r.inHot/r.s.n:0;
+      r.key=r.inHot+r.s.est/1000;
+    }else if(selected==='lr'){
+      const p=results&&results.lr.ok?results.lr.probs[r.b]:null;
+      r.score=p;
+      r.key=(p===null?0:p)+r.s.est/1000;
+    }else{
+      const pb=results&&results.rf.ok?results.rf.perBrgy[r.b]:null;
+      r.rfN=pb?pb.n:0;
+      r.score=pb&&pb.n>=5?pb.correct/pb.n:null;
+      r.key=r.s.est;
+    }
+  });
+  rows.sort((a,c)=>c.key-a.key);
+  return rows;
+}
+
+function scoreCell(r){
+  if(selected==='kmeans')return pct(r.score)+' <span class="mono-sm">('+r.inHot+' of '+r.s.n+')</span>';
+  if(selected==='lr')return r.score===null||r.score===undefined?'...':pct(r.score);
+  if(r.score===null||r.score===undefined)return '<span class="mono-sm">too few tests ('+(r.rfN||0)+')</span>';
+  return pct(r.score)+' <span class="mono-sm">(n='+r.rfN+')</span>';
+}
+
+const HEADERS={
+  kmeans:'Share of Incidents in Hotspots',
+  lr:'Chance of Above-Median Activity (next 30d)',
+  rf:'Crime-Type Accuracy Here (held-out)'
+};
+
+const NOTES={
+  kmeans:'Priority ranks barangays by how many of their incidents sit inside hotspot clusters. Estimated incidents = average rate over the last 180 days of records, scaled to 30 days.',
+  lr:'Priority ranks barangays by the model\u2019s probability of having more incidents than the median barangay in the 30 days after the latest record. Estimated incidents = average rate over the last 180 days of records, scaled to 30 days.',
+  rf:'Priority ranks barangays by estimated incidents. The last column is how often the forest named the correct crime type for held-out incidents in that barangay (shown only with at least 5 test cases).'
+};
+
+function renderTable(){
+  if(!$('panel-predict').classList.contains('on'))return;
+  const tb=$('pred-tbl');
+  tb.replaceChildren();
+  $('pred-th-score').textContent=HEADERS[selected];
+  $('score-note').textContent=NOTES[selected];
+  const rows=rankRows();
+  if(!rows.length){
+    tb.innerHTML='<tr><td colspan="5" class="empty">No data to analyze.</td></tr>';
+    return;
+  }
+  rows.forEach((r,i)=>{
+    const risk=riskOf(i,rows.length);
+    tb.insertAdjacentHTML('beforeend',
+      '<tr><td class="strong">'+esc(r.b)+'</td><td class="mono">'+r.s.est.toFixed(1)+'</td><td>'+esc(r.s.top)+' <span class="mono-sm">('+pct(r.s.topShare)+')</span></td><td class="mono">'+scoreCell(r)+'</td><td><span class="badge '+badgeOf(risk)+'">'+risk+'</span></td></tr>'
+    );
+  });
+}
+
+function renderZones(){
+  if(!$('panel-predict').classList.contains('on'))return;
+  const rz=$('risk-zones');
+  rz.replaceChildren();
+  const rows=rankRows();
+  if(!rows.length){
+    rz.innerHTML='<p class="pane-note">No incidents recorded yet.</p>';
+    return;
+  }
+  rows.slice(0,6).forEach((r,i)=>{
+    const risk=riskOf(i,rows.length);
+    rz.insertAdjacentHTML('beforeend','<div class="zone-row"><span class="zone-name">'+esc(r.b)+' <span>('+r.s.n+')</span></span><span class="badge '+badgeOf(risk)+'">'+risk+'</span></div>');
+  });
+}
+
+/* ----------------------- weekly chart (actual + simple estimate) ----------------------- */
 
 function destroyForecast(){
   if(state.charts.forecast){
@@ -99,63 +263,141 @@ function destroyForecast(){
   }
 }
 
-function renderPanel(){
-  if(!$('panel-predict').classList.contains('on'))return;
-  const data=state.crimeData;
-  const total=data.length;
-  const sorted=rank(data);
-
+function renderForecast(){
   destroyForecast();
-  const {days,values}=forecastSeries(data);
+  const P=prepare(brgyData());
+  const note=$('forecast-note');
+  if(P.length<8){
+    note.textContent='Not enough records yet to chart weekly activity.';
+    return;
+  }
+  const dMax=P[P.length-1].day;
+  const WEEKS=12,FUT=4;
+  const weeks=new Array(WEEKS).fill(0);
+  P.forEach(p=>{
+    const w=Math.floor((dMax-p.day)/7);
+    if(w>=0&&w<WEEKS)weeks[WEEKS-1-w]++;
+  });
+  const labels=[];
+  for(let i=0;i<WEEKS;i++){
+    const d=new Date((dMax-(WEEKS-1-i)*7)*DAY);
+    labels.push(MON[d.getUTCMonth()]+' '+d.getUTCDate());
+  }
+  for(let i=1;i<=FUT;i++)labels.push('+'+i+' wk');
+  const last8=weeks.slice(-8);
+  const avg=last8.reduce((a,b)=>a+b,0)/last8.length;
+  const half=1.96*Math.sqrt(avg);
+  const gap=new Array(WEEKS-1).fill(null);
+  const actual=weeks.concat(new Array(FUT).fill(null));
+  const est=gap.concat([weeks[WEEKS-1]]).concat(new Array(FUT).fill(+avg.toFixed(2)));
+  const up=gap.concat([weeks[WEEKS-1]]).concat(new Array(FUT).fill(+(avg+half).toFixed(2)));
+  const lo=gap.concat([weeks[WEEKS-1]]).concat(new Array(FUT).fill(+Math.max(0,avg-half).toFixed(2)));
   const color=COLORS[selected];
-  const tick=state.darkOn?'#C4D0DC':'#7A94A8';
+  const tickC=state.darkOn?'#C4D0DC':'#7A94A8';
   const grid=state.darkOn?'rgba(255,255,255,.06)':'rgba(0,0,0,.04)';
+  const top=Math.max(3,...weeks,Math.ceil(avg+half));
   state.charts.forecast=new Chart($('ch-forecast'),{
     type:'line',
-    data:{labels:days,datasets:[
-      {label:'Est. Incidents',data:values,borderColor:color,backgroundColor:color+'18',tension:.4,fill:true,pointRadius:2},
-      {label:'Upper Bound',data:values.map(v=>Math.round(v*1.2)),borderColor:color+'55',backgroundColor:'transparent',pointRadius:0,tension:.4,borderDash:[4,4]}
+    data:{labels,datasets:[
+      {label:'Actual incidents per week',data:actual,borderColor:color,backgroundColor:color+'22',fill:true,tension:0,pointRadius:3},
+      {label:'Estimate (avg. of last 8 weeks)',data:est,borderColor:color,borderDash:[6,4],backgroundColor:'transparent',pointRadius:2,tension:0},
+      {label:'Normal range (95%)',data:up,borderColor:color+'88',borderDash:[2,4],backgroundColor:'transparent',pointRadius:0,tension:0},
+      {label:'Normal range lower',data:lo,borderColor:color+'88',borderDash:[2,4],backgroundColor:'transparent',pointRadius:0,tension:0}
     ]},
     options:{
       responsive:true,
       maintainAspectRatio:false,
-      plugins:{legend:{labels:{color:tick,font:{family:'DM Sans',size:10}}}},
-      scales:{x:{ticks:{color:tick,font:{size:9},maxTicksLimit:10},grid:{display:false}},y:{ticks:{color:tick},grid:{color:grid}}}
+      plugins:{legend:{labels:{color:tickC,font:{family:'DM Sans',size:10},boxWidth:12,filter:i=>i.text!=='Normal range lower'}}},
+      scales:{
+        x:{title:{display:true,text:'Week ending (last 12 weeks, then 4 weeks ahead)',color:'#7A94A8',font:{size:10}},ticks:{color:tickC,font:{size:9},maxTicksLimit:16},grid:{display:false}},
+        y:{beginAtZero:true,suggestedMax:top,title:{display:true,text:'Incidents per week',color:'#7A94A8',font:{size:10}},ticks:{color:tickC,precision:0},grid:{color:grid}}
+      }
     }
   });
+  note.textContent='Weekly counts end at the latest record ('+dayLabel(dMax)+'). The dashed line is a plain baseline (average of the last 8 weeks) and the dotted band is the normal random swing around that average. It is not a machine-learning forecast.';
+}
 
-  const rz=$('risk-zones');
-  rz.replaceChildren();
-  if(!sorted.length){
-    rz.innerHTML='<p class="pane-note">No incidents recorded yet.</p>';
+/* ------------------------------------ map overlay ------------------------------------ */
+
+function modeHour(members){
+  const h=new Array(24).fill(0);
+  members.forEach(m=>{h[Math.floor(m.hour)%24]++;});
+  return h.indexOf(Math.max(...h));
+}
+
+function modeType(members){
+  const t={};
+  members.forEach(m=>{t[m.type]=(t[m.type]||0)+1;});
+  const e=Object.entries(t).sort((a,b)=>b[1]-a[1])[0];
+  return e?e[0]:'None';
+}
+
+function drawOverlay(){
+  LG.clusters.clearLayers();
+  const pts=brgyData();
+  if(!pts.length)return;
+  const P=prepare(pts);
+  if(!P.length)return;
+  if(selected==='kmeans'){
+    const fit=getFit(P,state.activeBrgy||'all');
+    fit.clusters.forEach((c,i)=>{
+      if(!c.size)return;
+      const col=c.hotspot?'#E8323A':'#D97706';
+      L.circle([c.lat,c.lng],{radius:c.radius,fillColor:col,fillOpacity:c.hotspot?.10:.04,color:col,weight:c.hotspot?1.8:1,dashArray:'5,7',interactive:false}).addTo(LG.clusters);
+      L.circleMarker([c.lat,c.lng],{radius:c.hotspot?5:3,fillColor:col,color:'#fff',weight:2,fillOpacity:1}).addTo(LG.clusters).bindPopup(
+        '<div class="pu-type" style="color:'+col+'">'+(c.hotspot?'Hotspot':'Minor')+' Cluster '+(i+1)+'</div>'
+        +'<div class="pu-row"><span>Incidents</span><span>'+c.size+' ('+pct(c.size/P.length)+' of shown)</span></div>'
+        +'<div class="pu-row"><span>Most common</span><span>'+esc(modeType(c.members))+'</span></div>'
+        +'<div class="pu-row"><span>Peak hour</span><span>'+hour12(modeHour(c.members))+'</span></div>'
+        +'<div class="pu-row"><span>Radius</span><span>'+Math.round(c.radius)+' m</span></div>'
+        +'<div class="pu-row"><span>Algorithm</span><span>K-Means (k='+fit.k+')</span></div>'
+      );
+    });
+  }else if(selected==='lr'){
+    rankRows().slice(0,3).forEach((r,i)=>{
+      if(!BRGY_COORDS[r.b])return;
+      const prob=results&&results.lr.ok?results.lr.probs[r.b]:null;
+      L.circle(BRGY_COORDS[r.b],{radius:250,fillColor:'#15803D',fillOpacity:.08,color:'#15803D',weight:1.5,dashArray:'6,4',interactive:false}).addTo(LG.clusters);
+      L.circleMarker(BRGY_COORDS[r.b],{radius:4,fillColor:'#15803D',color:'#fff',weight:2,fillOpacity:1}).addTo(LG.clusters).bindPopup(
+        '<div class="pu-type" style="color:#15803D">High-Risk Zone #'+(i+1)+'</div>'
+        +'<div class="pu-row"><span>Barangay</span><span>'+esc(r.b)+'</span></div>'
+        +'<div class="pu-row"><span>Chance above median (30d)</span><span>'+(prob===null?'calculating':pct(prob))+'</span></div>'
+        +'<div class="pu-row"><span>Algorithm</span><span>Logistic Regression</span></div>'
+      );
+    });
   }else{
-    sorted.slice(0,6).forEach(([b,n],i)=>{
-      const r=riskOf(i,sorted.length);
-      rz.insertAdjacentHTML('beforeend','<div class="zone-row"><span class="zone-name">'+esc(b)+' <span>('+n+')</span></span><span class="badge '+badgeOf(r)+'">'+r+'</span></div>');
+    rankRows().forEach(r=>{
+      if(!BRGY_COORDS[r.b])return;
+      const ct=CRIME_TYPES.find(c=>c.name===r.s.top);
+      const col=ct?ct.color:'#888888';
+      const pb=results&&results.rf.ok?results.rf.perBrgy[r.b]:null;
+      L.circle(BRGY_COORDS[r.b],{radius:120+Math.sqrt(r.s.n)*25,fillColor:col,fillOpacity:.08,color:col,weight:1.5,dashArray:'4,6',interactive:false}).addTo(LG.clusters);
+      L.circleMarker(BRGY_COORDS[r.b],{radius:4,fillColor:col,color:'#fff',weight:2,fillOpacity:1}).addTo(LG.clusters).bindPopup(
+        '<div class="pu-type" style="color:'+esc(col)+'">'+esc(r.s.top)+' zone</div>'
+        +'<div class="pu-row"><span>Barangay</span><span>'+esc(r.b)+'</span></div>'
+        +'<div class="pu-row"><span>Share of incidents here</span><span>'+pct(r.s.topShare)+'</span></div>'
+        +'<div class="pu-row"><span>Forest accuracy here</span><span>'+(pb&&pb.n>=5?pct(pb.correct/pb.n)+' (n='+pb.n+')':'too few tests')+'</span></div>'
+        +'<div class="pu-row"><span>Algorithm</span><span>Random Forest</span></div>'
+      );
     });
   }
+}
 
-  const tb=$('pred-tbl');
-  tb.replaceChildren();
-  if(!sorted.length){
-    tb.innerHTML='<tr><td colspan="5" class="empty">No data to analyze.</td></tr>';
-    return;
-  }
-  sorted.forEach(([b,n],i)=>{
-    const r=riskOf(i,sorted.length);
-    const byType=data.filter(c=>c.barangay===b).reduce((a,c)=>{a[c.type]=(a[c.type]||0)+1;return a;},{});
-    const top=Object.entries(byType).sort((a,c)=>c[1]-a[1])[0];
-    const conf=Math.min(95,Math.round(CONFIDENCE[selected]+(n/total)*20));
-    const est=Math.max(1,Math.round(n*MULTIPLIER[selected]*30));
-    tb.insertAdjacentHTML('beforeend',
-      '<tr><td class="strong">'+esc(b)+'</td><td class="mono">'+est+'</td><td>'+esc(top?top[0]:'None')+'</td><td class="mono">'+conf+'%</td><td><span class="badge '+badgeOf(r)+'">'+r+'</span></td></tr>'
-    );
-  });
+/* --------------------------------------- wiring --------------------------------------- */
+
+function renderPanel(){
+  if(!$('panel-predict').classList.contains('on'))return;
+  renderCards();
+  renderForecast();
+  renderTable();
+  renderZones();
 }
 
 export function updateAnalysis(){
   drawOverlay();
   renderPanel();
+  const panelOn=$('panel-predict').classList.contains('on');
+  if(panelOn||selected!=='kmeans')ensureEvaluation();
 }
 
 function markSelected(){
@@ -186,6 +428,11 @@ export function clearAnalysis(){
   $('risk-zones').replaceChildren();
   $('pred-tbl').replaceChildren();
   destroyForecast();
+  results=null;
+  resultsKey=null;
+  evalToken++;
+  evaluating=false;
+  fitMemo.clear();
 }
 
 export function initAnalysis(){
