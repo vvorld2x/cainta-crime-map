@@ -143,7 +143,6 @@
       <div class="crumb hidden" id="tr-crumb"></div>
       <div class="chart-box"><canvas id="ch-trend"></canvas></div>
       <p class="chart-note" id="tr-insight"></p>
-      <p class="chart-note dim">Click a bar to see that month or week day by day. Drag the chart to pan; Ctrl + scroll or pinch to zoom.</p>
     </div>
     <div class="card"><h3>Crime Type Distribution</h3><div class="chart-box"><canvas id="ch-type"></canvas></div></div>
   </div>
@@ -252,15 +251,13 @@
       <div class="algo-desc">Ensemble of decision trees that guesses the crime type from time, weekday and place.</div>
     </div>
   </div>
-  <p class="algo-note">Accuracy figures are measured: each method learns from the older records and is tested on the newest ones it never saw. The selected method is also drawn on the Crime Map under Hotspot Clusters.</p>
   <div id="analysis-results">
     <div class="row2">
-      <div class="card"><h3>Weekly Incidents and Simple Baseline</h3><div class="chart-box"><canvas id="ch-forecast"></canvas></div><p class="chart-note" id="forecast-note"></p></div>
+      <div class="card"><h3 id="forecast-title">Weekly Incidents</h3><div class="chart-box"><canvas id="ch-forecast"></canvas></div></div>
       <div class="card"><h3>Recommended Intervention Zones</h3><div id="risk-zones"></div></div>
     </div>
     <div class="tbl-wrap">
       <table><thead><tr><th>Barangay</th><th>Est. Incidents (30d)</th><th>Dominant Crime</th><th id="pred-th-score">Score</th><th>Intervention Priority</th></tr></thead><tbody id="pred-tbl"></tbody></table>
-      <p class="chart-note" id="score-note" style="padding:0 14px 12px"></p>
     </div>
   </div>
 </div>
