@@ -398,7 +398,7 @@ function renderTime(){
     renderHeat(heat,grid,used);
     let best={n:-1,d:0,h:0};
     grid.forEach((row,d)=>row.forEach((n,h)=>{if(n>best.n)best={n,d,h};}));
-    note.textContent='Each square is one weekday and hour. Darker means more incidents. Busiest slot: '+DOW[best.d]+' around '+hour12(best.h)+' with '+best.n+' incident'+(best.n===1?'':'s')+' (all dates combined). Hover a square for its exact count.';
+    note.textContent='Busiest slot: '+DOW[best.d]+' around '+hour12(best.h)+' ('+best.n+' incident'+(best.n===1?'':'s')+').';
     return;
   }
   heat.classList.add('hidden');
@@ -449,11 +449,9 @@ function renderTime(){
   });
   const peakH=hours.indexOf(Math.max(...hours));
   const topP=PERIODS.slice().sort((a,b)=>periods[b.key]-periods[a.key])[0];
-  if(TM.view==='hour'){
-    note.textContent='How to read it: each bar counts the incidents that happened during that hour of the day, all dates combined. Busiest hour: '+hour12(peakH)+' ('+hours[peakH]+' incidents, '+pct(hours[peakH]/used)+'). Busiest period: '+topP.label+' '+topP.range+' ('+pct(periods[topP.key]/used)+' of incidents). Bar colors mark the time period.';
-  }else{
-    note.textContent='Each bar counts the incidents in that part of the day, all dates combined. Busiest period: '+topP.label+' ('+topP.range+') with '+periods[topP.key]+' incidents, '+pct(periods[topP.key]/used)+' of the '+used+' shown.';
-  }
+  note.textContent=TM.view==='hour'
+    ?'Busiest hour: '+hour12(peakH)+' ('+hours[peakH]+' incidents, '+pct(hours[peakH]/used)+'). Busiest period: '+topP.label+' ('+pct(periods[topP.key]/used)+').'
+    :'Busiest period: '+topP.label+' ('+topP.range+'), '+periods[topP.key]+' incidents, '+pct(periods[topP.key]/used)+'.';
 }
 
 function renderHeat(el,grid,used){

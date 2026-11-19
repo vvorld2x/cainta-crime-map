@@ -98,8 +98,7 @@ function renderCards(){
   }else{
     const lift=k.lift?k.lift.toFixed(1)+'x better than random placement. ':'';
     setCard('kmeans',pct(k.value),k.value,
-      'Of the '+k.nTest+' newest incidents, '+pct(k.value)+' (\u00B1'+Math.round(k.ci*100)+') landed inside hotspots found from the older '+k.nTrain+'. '
-      +'Those hotspots cover '+pct(k.area)+' of the mapped area, '+lift+'Cluster quality (silhouette): '+k.silhouette.toFixed(2)+', k='+k.k+'.',
+      pct(k.value)+' (\u00B1'+Math.round(k.ci*100)+') of the '+k.nTest+' newest incidents fell inside hotspots found from older records. Hotspots cover '+pct(k.area)+' of the area'+(k.lift?' ('+k.lift.toFixed(1)+'x better than random)':'')+'.',
       false);
   }
   const l=results.lr;
@@ -108,9 +107,8 @@ function renderCards(){
   }else{
     const beats=l.value>l.baseline+0.005;
     setCard('lr',pct(l.value),l.value,
-      'Right on '+pct(l.value)+' (\u00B1'+Math.round(l.ci*100)+') of '+l.nTest+' later barangay/30-day cases it never saw in training. '
-      +'Always guessing the common answer scores '+pct(l.baseline)+'; the simple "busy last month" rule scores '+pct(l.naive)+'.'
-      +(beats?'':' The model is not clearly beating the baseline yet.'),
+      'Right on '+pct(l.value)+' (\u00B1'+Math.round(l.ci*100)+') of '+l.nTest+' unseen cases. Always guessing the common answer: '+pct(l.baseline)+'; "busy last month" rule: '+pct(l.naive)+'.'
+      +(beats?'':' Not clearly beating the baseline.'),
       !beats);
   }
   const r=results.rf;
@@ -119,9 +117,8 @@ function renderCards(){
   }else{
     const beats=r.value>r.baseline+0.005;
     setCard('rf',pct(r.value),r.value,
-      'Named the exact crime type for '+pct(r.value)+' (\u00B1'+Math.round(r.ci*100)+') of '+r.nTest+' held-out incidents; the right type was in its top 3 picks '+pct(r.top3)+'. '
-      +'Always guessing "'+r.majorityType+'" scores '+pct(r.baseline)+'.'
-      +(beats?'':' The model is not clearly beating the baseline yet.'),
+      'Exact type right for '+pct(r.value)+' (\u00B1'+Math.round(r.ci*100)+') of '+r.nTest+' unseen incidents; in top 3 picks: '+pct(r.top3)+'. Always guessing "'+r.majorityType+'": '+pct(r.baseline)+'.'
+      +(beats?'':' Not clearly beating the baseline.'),
       !beats);
   }
 }
@@ -214,18 +211,11 @@ const HEADERS={
   rf:'Crime-Type Accuracy Here (held-out)'
 };
 
-const NOTES={
-  kmeans:'Priority ranks barangays by how many of their incidents sit inside hotspot clusters. Estimated incidents = average rate over the last 180 days of records, scaled to 30 days.',
-  lr:'Priority ranks barangays by the model\u2019s probability of having more incidents than the median barangay in the 30 days after the latest record. Estimated incidents = average rate over the last 180 days of records, scaled to 30 days.',
-  rf:'Priority ranks barangays by estimated incidents. The last column is how often the forest named the correct crime type for held-out incidents in that barangay (shown only with at least 5 test cases).'
-};
-
 function renderTable(){
   if(!$('panel-predict').classList.contains('on'))return;
   const tb=$('pred-tbl');
   tb.replaceChildren();
   $('pred-th-score').textContent=HEADERS[selected];
-  $('score-note').textContent=NOTES[selected];
   const rows=rankRows();
   if(!rows.length){
     tb.innerHTML='<tr><td colspan="5" class="empty">No data to analyze.</td></tr>';
@@ -263,58 +253,71 @@ function destroyForecast(){
   }
 }
 
+function weeklySeries(P){
+  if(selected==='kmeans'){
+    const hot=new Set();
+    getFit(P,state.activeBrgy||'all').clusters.forEach(c=>{if(c.hotspot)c.members.forEach(m=>hot.add(m.id));});
+    return {title:'Weekly Incidents: Inside vs Outside Hotspots',series:[
+      {name:'Inside hotspots',color:'#E8323A',test:p=>hot.has(p.id)},
+      {name:'Outside hotspots',color:'#9AA8B8',test:p=>!hot.has(p.id)}
+    ]};
+  }
+  if(selected==='lr'){
+    const top=new Set(rankRows().slice(0,3).map(r=>r.b));
+    return {title:'Weekly Incidents: Top 3 Risk Barangays vs Others',series:[
+      {name:'Top 3 risk barangays',color:'#15803D',test:p=>top.has(p.barangay)},
+      {name:'Other barangays',color:'#9AA8B8',test:p=>!top.has(p.barangay)}
+    ]};
+  }
+  const counts={};
+  P.forEach(p=>{counts[p.type]=(counts[p.type]||0)+1;});
+  const top=Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,3).map(e=>e[0]);
+  const series=top.map(t=>{
+    const ct=CRIME_TYPES.find(c=>c.name===t);
+    return {name:t,color:ct?ct.color:'#888888',test:p=>p.type===t};
+  });
+  series.push({name:'Other types',color:'#9AA8B8',test:p=>!top.includes(p.type)});
+  return {title:'Weekly Incidents: Top Crime Types',series};
+}
+
 function renderForecast(){
   destroyForecast();
   const P=prepare(brgyData());
-  const note=$('forecast-note');
-  if(P.length<8){
-    note.textContent='Not enough records yet to chart weekly activity.';
-    return;
-  }
+  const spec=weeklySeries(P);
+  const ttl=$('forecast-title');
+  if(ttl)ttl.textContent=spec.title;
+  if(P.length<8)return;
   const dMax=P[P.length-1].day;
-  const WEEKS=12,FUT=4;
-  const weeks=new Array(WEEKS).fill(0);
-  P.forEach(p=>{
-    const w=Math.floor((dMax-p.day)/7);
-    if(w>=0&&w<WEEKS)weeks[WEEKS-1-w]++;
-  });
+  const WEEKS=12;
   const labels=[];
   for(let i=0;i<WEEKS;i++){
     const d=new Date((dMax-(WEEKS-1-i)*7)*DAY);
     labels.push(MON[d.getUTCMonth()]+' '+d.getUTCDate());
   }
-  for(let i=1;i<=FUT;i++)labels.push('+'+i+' wk');
-  const last8=weeks.slice(-8);
-  const avg=last8.reduce((a,b)=>a+b,0)/last8.length;
-  const half=1.96*Math.sqrt(avg);
-  const gap=new Array(WEEKS-1).fill(null);
-  const actual=weeks.concat(new Array(FUT).fill(null));
-  const est=gap.concat([weeks[WEEKS-1]]).concat(new Array(FUT).fill(+avg.toFixed(2)));
-  const up=gap.concat([weeks[WEEKS-1]]).concat(new Array(FUT).fill(+(avg+half).toFixed(2)));
-  const lo=gap.concat([weeks[WEEKS-1]]).concat(new Array(FUT).fill(+Math.max(0,avg-half).toFixed(2)));
-  const color=COLORS[selected];
+  const datasets=spec.series.map(sr=>{
+    const vals=new Array(WEEKS).fill(0);
+    P.forEach(p=>{
+      const w=Math.floor((dMax-p.day)/7);
+      if(w>=0&&w<WEEKS&&sr.test(p))vals[WEEKS-1-w]++;
+    });
+    return {label:sr.name,data:vals,backgroundColor:sr.color,borderWidth:0};
+  });
   const tickC=state.darkOn?'#C4D0DC':'#7A94A8';
   const grid=state.darkOn?'rgba(255,255,255,.06)':'rgba(0,0,0,.04)';
-  const top=Math.max(3,...weeks,Math.ceil(avg+half));
   state.charts.forecast=new Chart($('ch-forecast'),{
-    type:'line',
-    data:{labels,datasets:[
-      {label:'Actual incidents per week',data:actual,borderColor:color,backgroundColor:color+'22',fill:true,tension:0,pointRadius:3},
-      {label:'Estimate (avg. of last 8 weeks)',data:est,borderColor:color,borderDash:[6,4],backgroundColor:'transparent',pointRadius:2,tension:0},
-      {label:'Normal range (95%)',data:up,borderColor:color+'88',borderDash:[2,4],backgroundColor:'transparent',pointRadius:0,tension:0},
-      {label:'Normal range lower',data:lo,borderColor:color+'88',borderDash:[2,4],backgroundColor:'transparent',pointRadius:0,tension:0}
-    ]},
+    type:'bar',
+    data:{labels,datasets},
     options:{
       responsive:true,
       maintainAspectRatio:false,
-      plugins:{legend:{labels:{color:tickC,font:{family:'DM Sans',size:10},boxWidth:12,filter:i=>i.text!=='Normal range lower'}}},
+      interaction:{mode:'index',intersect:false},
+      plugins:{legend:{labels:{color:tickC,font:{family:'DM Sans',size:10},boxWidth:12}}},
       scales:{
-        x:{title:{display:true,text:'Week ending (last 12 weeks, then 4 weeks ahead)',color:'#7A94A8',font:{size:10}},ticks:{color:tickC,font:{size:9},maxTicksLimit:16},grid:{display:false}},
-        y:{beginAtZero:true,suggestedMax:top,title:{display:true,text:'Incidents per week',color:'#7A94A8',font:{size:10}},ticks:{color:tickC,precision:0},grid:{color:grid}}
+        x:{stacked:true,title:{display:true,text:'Week ending',color:'#7A94A8',font:{size:10}},ticks:{color:tickC,font:{size:9}},grid:{display:false}},
+        y:{stacked:true,beginAtZero:true,title:{display:true,text:'Incidents per week',color:'#7A94A8',font:{size:10}},ticks:{color:tickC,precision:0},grid:{color:grid}}
       }
     }
   });
-  note.textContent='Weekly counts end at the latest record ('+dayLabel(dMax)+'). The dashed line is a plain baseline (average of the last 8 weeks) and the dotted band is the normal random swing around that average. It is not a machine-learning forecast.';
 }
 
 /* ------------------------------------ map overlay ------------------------------------ */
