@@ -15,6 +15,8 @@ export function setTab(t){
   if((t==='encode'||t==='audit')&&!canWrite())return;
   document.querySelectorAll('.ntab').forEach(n=>n.classList.toggle('on',n.dataset.tab===t));
   $('map-wrap').style.display=t==='map'?'flex':'none';
+  $('sidebar').classList.toggle('hidden',t!=='map');
+  $('menu-btn').classList.toggle('hidden',t!=='map');
   PANELS.forEach(p=>$('panel-'+p).classList.toggle('on',p===t));
   if(t==='map'&&MAP)setTimeout(invalidateMap,50);
   if(hooks[t])hooks[t]();
