@@ -373,3 +373,38 @@ body.dark .ctl-btn{background:var(--mist3);border-color:var(--wire)}
 .enc-toggle:hover{color:var(--accent);border-color:var(--accent)}
 .enc-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 body.dark .enc-toggle{background:#1E2732;border-color:var(--wire)}
+
+.pdf-overlay{position:fixed;inset:0;z-index:10000;background:rgba(15,25,35,.55);display:flex;align-items:center;justify-content:center;padding:16px;opacity:0;pointer-events:none;transition:opacity .2s}
+.pdf-overlay.show{opacity:1;pointer-events:auto}
+.pdf-modal{background:#fff;border:1px solid var(--wire);border-radius:var(--r2);box-shadow:var(--sh2);width:680px;max-width:100%;max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);display:flex;flex-direction:column;transform:translateY(8px);transition:transform .2s}
+.pdf-overlay.show .pdf-modal{transform:translateY(0)}
+.pdf-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 20px 14px;border-bottom:1px solid var(--mist2)}
+.pdf-head h3{font-size:15px;font-weight:700;color:var(--ink);display:flex;align-items:center;gap:8px;letter-spacing:-.1px}
+.pdf-head h3 i{color:var(--accent)}
+.pdf-head p{font-size:11px;color:var(--ghost);margin-top:4px}
+.pdf-close{width:30px;height:30px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1px solid var(--wire);border-radius:6px;background:var(--mist);color:var(--ghost);cursor:pointer;font-size:12px;transition:all .15s}
+.pdf-close:hover{color:var(--red);border-color:var(--red);background:var(--red-lo)}
+.pdf-body{padding:16px 20px;overflow-y:auto;display:flex;flex-direction:column;gap:18px;flex:1}
+.pdf-sec-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.pdf-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--ghost2)}
+.pdf-links{display:flex;gap:10px}
+.pdf-links button{background:none;border:none;color:var(--accent);font-size:11px;font-weight:600;font-family:var(--font);cursor:pointer;padding:0}
+.pdf-links button:hover{color:var(--accent-h);text-decoration:underline}
+.pdf-dates{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px}
+.pdf-hint{font-size:11px;color:var(--ghost);margin-top:7px}
+.pdf-chips{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.pdf-chip{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;border-radius:6px;border:1px solid var(--mist3);background:transparent;color:var(--ghost);cursor:pointer;user-select:none;font-size:12px;font-weight:500;transition:all .12s}
+.pdf-chip:hover{background:var(--mist)}
+.pdf-chip.on{background:var(--accent-lo);border-color:var(--accent);color:var(--ink2)}
+.pdf-chip:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.pdf-chip-left{display:flex;align-items:center;gap:8px;min-width:0}
+.pdf-foot{display:flex;align-items:center;gap:10px;padding:14px 20px;border-top:1px solid var(--mist2)}
+.pdf-count{margin-right:auto;font-size:12px;font-weight:600;color:var(--ink2)}
+body.dark .pdf-modal{background:#1E2732}
+body.dark .pdf-close{background:var(--mist3);border-color:var(--wire)}
+@media(max-width:700px){
+  .pdf-chips,.pdf-dates{grid-template-columns:1fr}
+  .pdf-foot{flex-wrap:wrap}
+  .pdf-count{flex-basis:100%}
+  .pdf-foot .btn{flex:1;justify-content:center}
+}
