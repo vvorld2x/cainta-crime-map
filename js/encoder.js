@@ -7,6 +7,7 @@ import {refreshAll} from './refresh.js';
 import {insertOne,insertMany,updateOne,softDelete,restore} from './api.js';
 import {logAction} from './audit.js';
 import {reloadData} from './data.js';
+import {openPdfExport} from './pdfexport.js';
 
 let pickMode=false;
 let saving=false;
@@ -378,10 +379,6 @@ async function importExcel(evt){
   }
 }
 
-function exportPDF(){
-  showToast('PDF export is not available yet','error');
-}
-
 export function initEncoder(){
   $('save-btn').addEventListener('click',saveRecord);
   $('clear-btn').addEventListener('click',clearForm);
@@ -395,7 +392,7 @@ export function initEncoder(){
   });
   $('import-btn').addEventListener('click',()=>$('xlsx-input').click());
   $('xlsx-input').addEventListener('change',importExcel);
-  $('pdf-btn').addEventListener('click',exportPDF);
+  $('pdf-btn').addEventListener('click',openPdfExport);
   $('enc-tbl').addEventListener('click',e=>{
     const del=e.target.closest('[data-del-id]');
     if(del){
