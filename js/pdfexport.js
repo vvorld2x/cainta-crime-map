@@ -2,6 +2,7 @@ import {BARANGAYS,BRGY_COORDS,CRIME_TYPES,CLOSED_STATUSES,STATUSES,MONTHS} from 
 import {state} from './state.js';
 import {showToast} from './util.js';
 import {hour12} from './ml.js';
+import {CARTO_KEY} from './config.js';
 
 const W=960;
 const H=540;
@@ -447,7 +448,6 @@ function slideTypes(doc,c){
   rows.push({bold:true,fill:MIST2,cells:['Total',String(c.total),'100%',pct(c.closed/c.total)]});
   const rh=rows.length>9?26:30;
   table(doc,450,104,cols,rows,{rh,hh:28});
-  text(doc,'Cleared = cases with status Solved or Cleared.',450,104+28+rows.length*rh+22,10,GHOST2,'normal');
 }
 
 function slideTrend(doc,c){
@@ -474,15 +474,14 @@ function slideTrend(doc,c){
   if(showMA){
     datasets.push({type:'line',label:'3-'+unit+' moving average',data:ma,borderColor:AMBER,backgroundColor:'transparent',borderWidth:2.5,pointRadius:0,tension:0,order:1});
   }
-  const gl={month:'Month',week:'Week starting (Monday)',day:'Day'};
   const img=renderChart({
     data:{labels:buckets.map(b=>bucketLabel(b.start,gran,false)),datasets},
     options:{
       plugins:{legend:{display:showMA,labels:{color:GHOST2,font:FONT,boxWidth:14}}},
       layout:{padding:{top:6,right:8}},
       scales:{
-        x:xAxis(gl[gran],{ticks:{color:GHOST2,font:FONT,maxRotation:50,autoSkip:true,maxTicksLimit:gran==='day'?20:16}}),
-        y:yAxis('Number of incidents',Math.max(3,Math.ceil(maxN*1.18)))
+        x:xAxis('',{ticks:{color:GHOST2,font:FONT,maxRotation:50,autoSkip:true,maxTicksLimit:gran==='day'?20:16}}),
+        y:yAxis('',Math.max(3,Math.ceil(maxN*1.18)))
       }
     },
     plugins:[valueLabels(false,18)]
@@ -494,13 +493,13 @@ function slideTrend(doc,c){
   const prev=counts.length>1?counts[counts.length-2]:null;
   const cards=[
     {v:bucketLabel(peak.start,gran,true),l:'Busiest '+unit,s:plural(maxN,'incident'),col:RED},
-    {v:(total/buckets.length).toFixed(1),l:'Average per '+unit,s:'across '+plural(buckets.length,unit),col:ACCENT}
+    {v:(total/buckets.length).toFixed(1),l:'Average per '+unit,col:ACCENT}
   ];
   if(prev!==null){
     const diff=last-prev;
     cards.push({v:(diff>0?'+':'')+diff,l:'Latest '+unit+' vs previous',s:last+' now, '+prev+' before',col:diff>0?RED:diff<0?GREEN:GHOST2});
   }else{
-    cards.push({v:String(last),l:'Latest '+unit,s:'only one '+unit+' in range',col:GHOST2});
+    cards.push({v:String(last),l:'Latest '+unit,col:GHOST2});
   }
   statCards(doc,cards,404,84,22);
 }
@@ -518,7 +517,7 @@ function slideBrgy(doc,c){
       plugins:{legend:{display:false}},
       layout:{padding:{right:16}},
       scales:{
-        x:yAxis('Number of incidents',Math.max(3,Math.ceil(maxN*1.2))),
+        x:yAxis('',Math.max(3,Math.ceil(maxN*1.2))),
         y:{ticks:{color:INK2,font:{family:FONT.family,size:11}},grid:{display:false}}
       }
     },
@@ -557,7 +556,7 @@ function slideTime(doc,c){
       layout:{padding:{top:4}},
       scales:{
         x:xAxis('',{ticks:{color:GHOST2,font:{family:FONT.family,size:9},maxRotation:60,autoSkip:false}}),
-        y:yAxis('Number of incidents',Math.max(3,Math.ceil(maxH*1.2)))
+        y:yAxis('',Math.max(3,Math.ceil(maxH*1.2)))
       }
     },
     plugins:[valueLabels(false,0)]
@@ -614,7 +613,7 @@ function slideStatus(doc,c){
       indexAxis:'y',
       plugins:{legend:{display:true,position:'top',labels:{color:INK2,font:FONT,boxWidth:12}},title:{display:true,text:'Cases by crime type',color:INK2,font:{family:FONT.family,size:13,weight:'bold'}}},
       scales:{
-        x:yAxis('Number of cases',3,{stacked:true}),
+        x:yAxis('',3,{stacked:true}),
         y:{stacked:true,ticks:{color:INK2,font:FONT},grid:{display:false}}
       }
     }
@@ -624,7 +623,7 @@ function slideStatus(doc,c){
   const low=ranked[0];
   statCards(doc,[
     {v:pct(c.total?c.closed/c.total:0),l:'Clearance rate',s:c.closed+' of '+c.total+' cases',col:GREEN},
-    {v:String(c.open),l:'Still open',s:'Under or ongoing investigation',col:AMBER},
+    {v:String(c.open),l:'Still open',col:AMBER},
     {v:low?low.name:'N/A',l:'Lowest clearance (3+ cases)',s:low?pct(low.closed/low.n)+' cleared':'Not enough cases',col:RED}
   ],404,84,22);
 }
@@ -675,101 +674,160 @@ function slideMatrix(doc,c){
   });
   rect(doc,MX+first+types.length*cw,ty,totalW,rh,WIRE);
   text(doc,String(c.total),MX+first+types.length*cw+totalW/2,ty+rh/2,12,INK,'bold',{align:'center',baseline:'middle'});
-  text(doc,'Darker cells mean more incidents of that crime type in that barangay.',MX,ty+rh+22,10,GHOST2,'normal');
 }
 
-function slideSpatial(doc,c){
+const TILE_BASE='https://basemaps.cartocdn.com/rastertiles/voyager/';
+
+function mercX(lng){
+  return (lng+180)/360;
+}
+
+function mercY(lat){
+  const r=lat*Math.PI/180;
+  return (1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2;
+}
+
+function loadTile(z,x,y){
+  return new Promise(resolve=>{
+    const img=new Image();
+    img.crossOrigin='anonymous';
+    const timer=setTimeout(()=>resolve(null),8000);
+    img.onload=()=>{clearTimeout(timer);resolve(img);};
+    img.onerror=()=>{clearTimeout(timer);resolve(null);};
+    img.src=TILE_BASE+z+'/'+x+'/'+y+'.png'+(CARTO_KEY?'?key='+encodeURIComponent(CARTO_KEY):'');
+  });
+}
+
+async function mapImage(pts,brgyPts,types,w,h){
+  const coords=pts.map(p=>[+p.lat,+p.lng]).concat(brgyPts.map(b=>b.pos));
+  const xs=coords.map(q=>mercX(q[1]));
+  const ys=coords.map(q=>mercY(q[0]));
+  const minX=Math.min(...xs);
+  const maxX=Math.max(...xs);
+  const minY=Math.min(...ys);
+  const maxY=Math.max(...ys);
+  const spanX=(maxX-minX)*1.28||0.0004;
+  const spanY=(maxY-minY)*1.28||0.0004;
+  const zf=Math.min(Math.log2(w/(spanX*256)),Math.log2(h/(spanY*256)),17);
+  const scale=256*Math.pow(2,zf);
+  const cx=(minX+maxX)/2;
+  const cy=(minY+maxY)/2;
+  const toPx=(lat,lng)=>[(mercX(lng)-cx)*scale+w/2,(mercY(lat)-cy)*scale+h/2];
+  const tz=Math.max(0,Math.min(18,Math.round(zf)));
+  const n=Math.pow(2,tz);
+  const tx0=Math.floor((cx-w/2/scale)*n);
+  const tx1=Math.floor((cx+w/2/scale)*n);
+  const ty0=Math.floor((cy-h/2/scale)*n);
+  const ty1=Math.floor((cy+h/2/scale)*n);
+  const jobs=[];
+  for(let ty=ty0;ty<=ty1;ty++){
+    for(let tx=tx0;tx<=tx1;tx++){
+      if(ty<0||ty>=n)continue;
+      const wx=((tx%n)+n)%n;
+      jobs.push(loadTile(tz,wx,ty).then(img=>({img,tx,ty})));
+    }
+  }
+  const tiles=(await Promise.all(jobs)).filter(t=>t.img);
+
+  const paint=withTiles=>{
+    const canvas=document.createElement('canvas');
+    canvas.width=w*2;
+    canvas.height=h*2;
+    const g=canvas.getContext('2d');
+    g.scale(2,2);
+    g.fillStyle='#EBF0F5';
+    g.fillRect(0,0,w,h);
+    if(withTiles){
+      const size=scale/n;
+      tiles.forEach(t=>{
+        const px=(t.tx/n-cx)*scale+w/2;
+        const py=(t.ty/n-cy)*scale+h/2;
+        g.drawImage(t.img,px,py,size+0.5,size+0.5);
+      });
+    }else{
+      g.strokeStyle='rgba(0,0,0,.08)';
+      g.lineWidth=1;
+      for(let i=1;i<6;i++){
+        g.beginPath();g.moveTo(w*i/6,0);g.lineTo(w*i/6,h);g.stroke();
+        g.beginPath();g.moveTo(0,h*i/6);g.lineTo(w,h*i/6);g.stroke();
+      }
+    }
+    types.forEach(t=>{
+      g.fillStyle=t.color+'E6';
+      g.strokeStyle='#FFFFFF';
+      g.lineWidth=1.2;
+      pts.filter(p=>p.type===t.name).forEach(p=>{
+        const q=toPx(+p.lat,+p.lng);
+        g.beginPath();
+        g.arc(q[0],q[1],4.5,0,Math.PI*2);
+        g.fill();
+        g.stroke();
+      });
+    });
+    g.font='700 11px DM Sans, sans-serif';
+    g.textBaseline='middle';
+    g.lineJoin='round';
+    const placed=[];
+    const clash=r=>placed.some(q=>r.x<q.x+q.w&&r.x+r.w>q.x&&r.y<q.y+q.h&&r.y+r.h>q.y);
+    brgyPts.forEach(b=>{
+      const q=toPx(b.pos[0],b.pos[1]);
+      const label=b.name.replace(/\s*\(.*\)\s*$/,'');
+      const tw=g.measureText(label).width;
+      const th=14;
+      const opts=[
+        {x:q[0]-tw/2,y:q[1]-th-7,align:'center',tx:q[0]},
+        {x:q[0]-tw/2,y:q[1]+7,align:'center',tx:q[0]},
+        {x:q[0]-tw-9,y:q[1]-th/2,align:'right',tx:q[0]-9},
+        {x:q[0]+9,y:q[1]-th/2,align:'left',tx:q[0]+9}
+      ];
+      const pick=opts.find(o=>!clash({x:o.x,y:o.y,w:tw,h:th}))||opts[0];
+      placed.push({x:pick.x,y:pick.y,w:tw,h:th});
+      g.textAlign=pick.align;
+      g.strokeStyle='#FFFFFF';
+      g.lineWidth=4;
+      g.strokeText(label,pick.tx,pick.y+th/2);
+      g.fillStyle=INK;
+      g.fillText(label,pick.tx,pick.y+th/2);
+      g.beginPath();
+      g.arc(q[0],q[1],3.5,0,Math.PI*2);
+      g.fillStyle=INK;
+      g.fill();
+      g.strokeStyle='#FFFFFF';
+      g.lineWidth=1.5;
+      g.stroke();
+    });
+    if(withTiles){
+      const credit='\u00A9 OpenStreetMap contributors \u00A9 CARTO';
+      g.font='500 9px DM Sans, sans-serif';
+      g.textAlign='right';
+      g.textBaseline='bottom';
+      const cw=g.measureText(credit).width;
+      g.fillStyle='rgba(255,255,255,.8)';
+      g.fillRect(w-cw-10,h-15,cw+10,15);
+      g.fillStyle=GHOST2;
+      g.fillText(credit,w-5,h-3);
+    }
+    return canvas.toDataURL('image/png');
+  };
+
+  if(tiles.length){
+    try{
+      return paint(true);
+    }catch(e){
+      return paint(false);
+    }
+  }
+  return paint(false);
+}
+
+async function slideSpatial(doc,c){
   doc.addPage();
   header(doc,'Incident Location Plot',c.rangeShort);
-  const pts=c.rows.filter(r=>Number.isFinite(+r.lat)&&Number.isFinite(+r.lng)&&r.lat!==null&&r.lng!==null);
+  const pts=c.rows.filter(r=>r.lat!==null&&r.lng!==null&&Number.isFinite(+r.lat)&&Number.isFinite(+r.lng));
   const brgyPts=c.brgyList.map(b=>({name:b.name,pos:BRGY_COORDS[b.name]})).filter(b=>b.pos);
-  const lats=pts.map(p=>+p.lat).concat(brgyPts.map(b=>b.pos[0]));
-  const lngs=pts.map(p=>+p.lng).concat(brgyPts.map(b=>b.pos[1]));
   const cw=600;
   const ch=390;
-  let latMin=Math.min(...lats);
-  let latMax=Math.max(...lats);
-  let lngMin=Math.min(...lngs);
-  let lngMax=Math.max(...lngs);
-  const padLat=(latMax-latMin)*0.1||0.005;
-  const padLng=(lngMax-lngMin)*0.1||0.005;
-  latMin-=padLat;latMax+=padLat;lngMin-=padLng;lngMax+=padLng;
-  const kx=Math.cos(((latMin+latMax)/2)*Math.PI/180);
-  const aspect=cw/ch;
-  let spanLat=latMax-latMin;
-  let spanLng=lngMax-lngMin;
-  if((spanLng*kx)/spanLat<aspect){
-    const need=aspect*spanLat/kx;
-    const grow=(need-spanLng)/2;
-    lngMin-=grow;lngMax+=grow;
-  }else{
-    const need=spanLng*kx/aspect;
-    const grow=(need-spanLat)/2;
-    latMin-=grow;latMax+=grow;
-  }
-  const datasets=c.typeList.map(t=>({
-    label:t.name,
-    data:pts.filter(p=>p.type===t.name).map(p=>({x:+p.lng,y:+p.lat})),
-    backgroundColor:t.color+'D9',
-    borderColor:'#FFFFFF',
-    borderWidth:1,
-    pointRadius:4.5
-  }));
-  const labels={
-    id:'brgyLabels',
-    afterDatasetsDraw(chart){
-      const cx=chart.ctx;
-      cx.save();
-      cx.font='700 11px DM Sans, sans-serif';
-      cx.textBaseline='middle';
-      cx.lineJoin='round';
-      const placed=[];
-      const clash=r=>placed.some(p=>r.x<p.x+p.w&&r.x+r.w>p.x&&r.y<p.y+p.h&&r.y+r.h>p.y);
-      brgyPts.forEach(b=>{
-        const px=chart.scales.x.getPixelForValue(b.pos[1]);
-        const py=chart.scales.y.getPixelForValue(b.pos[0]);
-        const label=b.name.replace(/\s*\(.*\)\s*$/,'');
-        const tw=cx.measureText(label).width;
-        const th=14;
-        const options=[
-          {x:px-tw/2,y:py-th-7,align:'center',tx:px},
-          {x:px-tw/2,y:py+7,align:'center',tx:px},
-          {x:px-tw-9,y:py-th/2,align:'right',tx:px-9},
-          {x:px+9,y:py-th/2,align:'left',tx:px+9}
-        ];
-        const pick=options.find(o=>!clash({x:o.x,y:o.y,w:tw,h:th}))||options[0];
-        placed.push({x:pick.x,y:pick.y,w:tw,h:th});
-        cx.textAlign=pick.align;
-        cx.strokeStyle='#FFFFFF';
-        cx.lineWidth=4;
-        cx.strokeText(label,pick.tx,pick.y+th/2);
-        cx.fillStyle=INK;
-        cx.fillText(label,pick.tx,pick.y+th/2);
-        cx.beginPath();
-        cx.arc(px,py,3.5,0,Math.PI*2);
-        cx.fillStyle=INK;
-        cx.fill();
-        cx.strokeStyle='#FFFFFF';
-        cx.lineWidth=1.5;
-        cx.stroke();
-      });
-      cx.restore();
-    }
-  };
-  const gridColor='rgba(0,0,0,.08)';
-  const img=renderChart({
-    type:'scatter',
-    data:{datasets},
-    options:{
-      plugins:{legend:{display:false}},
-      layout:{padding:6},
-      scales:{
-        x:{min:lngMin,max:lngMax,ticks:{display:false},grid:{color:gridColor},border:{color:WIRE}},
-        y:{min:latMin,max:latMax,ticks:{display:false},grid:{color:gridColor},border:{color:WIRE}}
-      }
-    },
-    plugins:[labels]
-  },cw,ch);
+  const img=await mapImage(pts,brgyPts,c.typeList,cw,ch);
   placeImage(doc,img,MX,92,cw,ch);
   doc.setDrawColor(WIRE);
   doc.setLineWidth(1);
@@ -784,8 +842,9 @@ function slideSpatial(doc,c){
     y+=26;
   });
   const missing=c.total-pts.length;
-  const note='Schematic plot of recorded incident coordinates, not a basemap.'+(missing>0?' '+plural(missing,'incident')+' without valid coordinates not shown.':'');
-  wrap(doc,note,248,10,'normal').forEach((l,i)=>text(doc,l,672,y+14+i*14,10,GHOST2,'normal'));
+  if(missing>0){
+    wrap(doc,plural(missing,'incident')+' without valid coordinates not shown.',248,10,'normal').forEach((l,i)=>text(doc,l,672,y+14+i*14,10,GHOST2,'normal'));
+  }
 }
 
 function slideList(doc,c){
@@ -820,9 +879,9 @@ function slideTitle(doc,c){
   rect(doc,70,276,90,4,ACCENT);
   let y=314;
   [
-    'Crime types: '+c.typesLabel,
-    'Barangays: '+c.brgyLabel,
-    plural(c.total,'incident')+' included in this report'
+    c.typesAll?c.typesLabel:'Crime types: '+c.typesLabel,
+    c.brgysAll?c.brgyLabel:'Barangays: '+c.brgyLabel,
+    plural(c.total,'incident')
   ].forEach(line=>{
     wrap(doc,line,800,13,'normal').slice(0,2).forEach(l=>{
       text(doc,l,70,y,13,'#A8BBC8','normal');
@@ -901,17 +960,19 @@ function buildContext(range,types,brgys,rows,opts){
   const typesLabel=allTypes?'All crime types':CRIME_TYPES.filter(t=>types.has(t.name)).map(t=>t.name).join(', ');
   const brgyLabel=allBrgys?'All barangays ('+BARANGAYS.length+')':BARANGAYS.filter(b=>brgys.has(b)).join(', ');
   const findings=[];
-  if(typeList[0])findings.push('Most reported crime: '+typeList[0].name+' with '+plural(typeList[0].n,'case')+' ('+pct(typeList[0].n/total)+' of all incidents).');
-  if(brgyRank[0]){
-    const second=brgyRank[1];
-    findings.push('Highest incident count: '+brgyRank[0].name+' with '+plural(brgyRank[0].n,'case')+' ('+pct(brgyRank[0].n/total)+')'+(second?', followed by '+second.name+' with '+second.n+'.':'.'));
+  if(brgyRank.length>1){
+    const rest=brgyRank.slice(1,3).map(b=>b.name+' with '+b.n).join(' and ');
+    findings.push('Next highest barangays: '+rest+'.');
+  }
+  if(typeList.length>2){
+    const share=typeList.slice(0,3).reduce((a,t)=>a+t.n,0)/total;
+    findings.push('The top three crime types ('+typeList.slice(0,3).map(t=>t.name).join(', ')+') make up '+pct(share)+' of all incidents.');
   }
   if(time.used){
     const peakH=time.hours.indexOf(Math.max(...time.hours));
     const peakD=time.dows.indexOf(Math.max(...time.dows));
-    findings.push('Incidents peak around '+hour12(peakH)+' and the busiest day of the week is '+DOW_FULL[peakD]+' ('+plural(time.dows[peakD],'case')+').');
+    findings.push('Incidents peak around '+hour12(peakH)+'. The busiest day of the week is '+DOW_FULL[peakD]+' ('+plural(time.dows[peakD],'case')+').');
   }
-  findings.push('Clearance rate is '+pct(total?closed/total:0)+': '+closed+' of '+plural(total,'case')+' solved or cleared, '+(total-closed)+' still open.');
   const {lo}=dataBounds();
   if(range.bounded){
     const spanDays=Math.round((end-start)/DAY)+1;
@@ -933,14 +994,14 @@ function buildContext(range,types,brgys,rows,opts){
     statusCounts:tally(rows,'status'),
     rangeLabel,
     rangeShort:rangeLabel,
-    typesLabel,brgyLabel,findings,
+    typesLabel,brgyLabel,typesAll:allTypes,brgysAll:allBrgys,findings,
     preparedBy:(state.profile&&state.profile.display_name)||'Authorized user',
     generated:fmtDate(Date.now()),
     sections:opts.sections
   };
 }
 
-function buildPdf(range,types,brgys,rows){
+async function buildPdf(range,types,brgys,rows){
   const jsPDF=window.jspdf&&window.jspdf.jsPDF;
   if(!jsPDF)throw new Error('missing library');
   const doc=new jsPDF({orientation:'landscape',unit:'pt',format:[W,H],compress:true});
@@ -955,7 +1016,7 @@ function buildPdf(range,types,brgys,rows){
   if(has('time')&&c.time.used)slideTime(doc,c);
   if(has('status'))slideStatus(doc,c);
   if(has('matrix'))slideMatrix(doc,c);
-  if(has('spatial'))slideSpatial(doc,c);
+  if(has('spatial'))await slideSpatial(doc,c);
   if(has('list'))slideList(doc,c);
   const n=doc.getNumberOfPages();
   for(let i=2;i<=n;i++){
@@ -963,7 +1024,7 @@ function buildPdf(range,types,brgys,rows){
     doc.setDrawColor(WIRE);
     doc.setLineWidth(0.75);
     doc.line(MX,H-30,W-MX,H-30);
-    text(doc,'Cainta Municipal Police Station  |  Crime Incident Report  |  '+c.rangeLabel,MX,H-14,9,GHOST,'normal');
+    text(doc,'Cainta Municipal Police Station  |  Crime Incident Report',MX,H-14,9,GHOST,'normal');
     text(doc,'Page '+i+' of '+n,W-MX,H-14,9,GHOST,'normal',{align:'right'});
   }
   const stamp=new Date().toISOString().slice(0,10);
@@ -986,11 +1047,11 @@ function renderCount(){
   const range=resolveRange();
   const count=modal.querySelector('#pdf-count');
   const gen=modal.querySelector('#pdf-go');
-  count.textContent=plural(rows.length,'incident')+' will be included';
+  count.textContent=plural(rows.length,'incident');
   gen.disabled=busy||rows.length===0||!range.valid;
   const hint=modal.querySelector('#pdf-hint');
   if(!range.valid)hint.textContent='No incident data available yet.';
-  else hint.textContent=fmtDate(range.start)+' to '+fmtDate(range.end)+(S.preset==='all'||S.preset==='custom'||/^y\d{4}$/.test(S.preset)?'':' (counted back from the latest encoded incident)');
+  else hint.textContent=fmtDate(range.start)+' to '+fmtDate(range.end);
 }
 
 function renderPresets(){
@@ -1016,11 +1077,6 @@ function chipGroup(container,items,selected,onToggle){
     chip.setAttribute('aria-checked',selected.has(it.key)?'true':'false');
     chip.tabIndex=0;
     const left=el('span','pdf-chip-left');
-    if(it.color){
-      const dot=el('span','cf-dot');
-      dot.style.background=it.color;
-      left.appendChild(dot);
-    }
     left.appendChild(el('span',null,it.label));
     chip.appendChild(left);
     if(it.count!==undefined)chip.appendChild(el('span','cf-cnt',String(it.count)));
@@ -1038,7 +1094,7 @@ function renderChips(){
   const inTime=state.crimeData.filter(c=>inRange(c,range));
   const typeCounts=tally(inTime,'type');
   const brgyCounts=tally(inTime,'barangay');
-  chipGroup(modal.querySelector('#pdf-types'),CRIME_TYPES.map(t=>({key:t.name,label:t.name,color:t.color,count:typeCounts[t.name]||0})),S.types,key=>{
+  chipGroup(modal.querySelector('#pdf-types'),CRIME_TYPES.map(t=>({key:t.name,label:t.name,count:typeCounts[t.name]||0})),S.types,key=>{
     if(S.types.has(key))S.types.delete(key);else S.types.add(key);
     renderAll();
   });
@@ -1082,7 +1138,7 @@ async function generate(){
   label.textContent='Generating...';
   await new Promise(r=>setTimeout(r,40));
   try{
-    buildPdf(range,S.types,S.brgys,rows);
+    await buildPdf(range,S.types,S.brgys,rows);
     busy=false;
     closeModal();
     showToast('PDF report downloaded','success');
@@ -1115,7 +1171,7 @@ function buildModal(){
   h.id='pdf-title';
   const icon=el('i','fa-solid fa-file-pdf');
   h.append(icon,el('span',null,'Export PDF Report'));
-  headText.append(h,el('p',null,'Creates a slide-style report you can present. Choose what to include.'));
+  headText.append(h);
   const close=el('button','pdf-close');
   close.type='button';
   close.setAttribute('aria-label','Close');
