@@ -133,13 +133,7 @@
         <label class="ctl">Group by<select id="tr-gran"><option value="month">Month</option><option value="week">Week</option><option value="day">Day</option></select></label>
         <label class="ctl">Period<select id="tr-range"></select></label>
         <label class="ctl">Crime type<select id="tr-type"></select></label>
-        <div class="ctl-btns hidden" id="tr-zoombar">
-          <button type="button" class="ctl-btn" id="tr-zin" title="Zoom in" aria-label="Zoom in"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
-          <button type="button" class="ctl-btn" id="tr-zout" title="Zoom out" aria-label="Zoom out"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
-          <button type="button" class="ctl-btn" id="tr-pl" title="Pan left" aria-label="Pan left"><i class="fa-solid fa-arrow-left"></i></button>
-          <button type="button" class="ctl-btn" id="tr-pr" title="Pan right" aria-label="Pan right"><i class="fa-solid fa-arrow-right"></i></button>
-          <button type="button" class="ctl-btn" id="tr-reset" title="Reset zoom" aria-label="Reset zoom"><i class="fa-solid fa-rotate-left"></i></button>
-        </div>
+        <span class="chart-note dim hidden" id="tr-hint">Scroll or pinch to zoom, drag to pan, double-click to reset. Click a bar to drill down.</span>
       </div>
       <div class="crumb hidden" id="tr-crumb"></div>
       <div class="chart-box"><canvas id="ch-trend"></canvas></div>
