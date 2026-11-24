@@ -73,6 +73,7 @@ const T={gran:'month',range:'all',type:'all',from:null,to:null,label:''};
 let wired=false;
 let buckets=[];
 let justPanned=false;
+let clickTimer=null;
 
 function bucketStart(ms,gran){
   if(gran==='day')return ms;
@@ -285,7 +286,10 @@ function renderTrend(){
       onClick:(evt,els,chart)=>{
         if(justPanned)return;
         const hit=chart.getElementsAtEventForMode(evt,'index',{intersect:false},true);
-        if(hit.length)drillInto(hit[0].index);
+        if(!hit.length)return;
+        const idx=hit[0].index;
+        clearTimeout(clickTimer);
+        clickTimer=setTimeout(()=>drillInto(idx),260);
       },
       onHover:(evt,els)=>{
         ctx.style.cursor=T.gran!=='day'&&els.length?'pointer':'default';
@@ -321,7 +325,7 @@ function renderTrend(){
         zoom:zoomOn?{
           limits:{x:{min:'original',max:'original',minRange:3}},
           pan:{enabled:true,mode:'x',onPanStart:()=>{justPanned=true;},onPanComplete:()=>{setTimeout(()=>{justPanned=false;},250);}},
-          zoom:{wheel:{enabled:true,modifierKey:'ctrl'},pinch:{enabled:true},mode:'x'}
+          zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:'x'}
         }:{}
       },
       scales:{
@@ -330,7 +334,7 @@ function renderTrend(){
       }
     }
   });
-  $('tr-zoombar').classList.toggle('hidden',!zoomOn);
+  $('tr-hint').classList.toggle('hidden',!zoomOn);
 }
 
 /* ============================ Time of day ============================ */
@@ -511,11 +515,11 @@ function wireControls(){
     T.type=e.target.value;
     renderTrend();
   });
-  $('tr-zin').addEventListener('click',()=>{if(state.charts.trend&&state.charts.trend.zoom)state.charts.trend.zoom(1.4);});
-  $('tr-zout').addEventListener('click',()=>{if(state.charts.trend&&state.charts.trend.zoom)state.charts.trend.zoom(0.7);});
-  $('tr-pl').addEventListener('click',()=>{if(state.charts.trend&&state.charts.trend.pan)state.charts.trend.pan({x:150},undefined,'default');});
-  $('tr-pr').addEventListener('click',()=>{if(state.charts.trend&&state.charts.trend.pan)state.charts.trend.pan({x:-150},undefined,'default');});
-  $('tr-reset').addEventListener('click',()=>{if(state.charts.trend&&state.charts.trend.resetZoom)state.charts.trend.resetZoom();});
+  $('ch-trend').addEventListener('dblclick',()=>{
+    clearTimeout(clickTimer);
+    const c=state.charts.trend;
+    if(c&&c.resetZoom)c.resetZoom();
+  });
   $('tm-view').addEventListener('change',e=>{TM.view=e.target.value;renderTime();});
   $('tm-type').addEventListener('change',e=>{TM.type=e.target.value;renderTime();});
 }
