@@ -334,7 +334,6 @@ function renderTrend(){
       }
     }
   });
-  $('tr-hint').classList.toggle('hidden',!zoomOn);
 }
 
 /* ============================ Time of day ============================ */
