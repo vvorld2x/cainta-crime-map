@@ -248,7 +248,16 @@ function median(a){
   return s.length%2?s[h]:(s[h-1]+s[h])/2;
 }
 
-export function evalRisk(P,barangays){
+/* A lone old record (a typo, or one stray case) would stretch the timeline and leave
+   most training windows empty. Ignore anything before a gap longer than maxGap days. */
+function trimLeadingGap(P,maxGap){
+  let start=0;
+  for(let i=1;i<P.length;i++)if(P[i].day-P[i-1].day>maxGap)start=i;
+  return start?P.slice(start):P;
+}
+
+export function evalRisk(P0,barangays){
+  const P=trimLeadingGap(P0,365);
   const n=P.length;
   const haveDays=n?P[n-1].day-P[0].day+1:0;
   const fail={ok:false,needDays:MIN_DAYS,haveDays};
