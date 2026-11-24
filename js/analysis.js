@@ -246,13 +246,7 @@ function renderZones(){
 
 /* ----------------------- weekly chart (actual + simple estimate) ----------------------- */
 
-function zoomAvailable(){
-  try{return !!Chart.registry.plugins.get('zoom');}catch(e){return false;}
-}
-
 function destroyForecast(){
-  const hint=$('fc-hint');
-  if(hint)hint.classList.add('hidden');
   if(state.charts.forecast){
     try{state.charts.forecast.destroy();}catch(e){}
     delete state.charts.forecast;
@@ -294,14 +288,11 @@ function renderForecast(){
   if(ttl)ttl.textContent=spec.title;
   if(P.length<8)return;
   const dMax=P[P.length-1].day;
-  const VIEW=12;
-  const dMin=P[0].day;
-  const WEEKS=Math.max(VIEW,Math.min(104,Math.floor((dMax-dMin)/7)+1));
-  const zoomOn=zoomAvailable();
+  const WEEKS=12;
   const labels=[];
   for(let i=0;i<WEEKS;i++){
     const d=new Date((dMax-(WEEKS-1-i)*7)*DAY);
-    labels.push(MON[d.getUTCMonth()]+' '+d.getUTCDate()+(WEEKS>VIEW?', '+d.getUTCFullYear():''));
+    labels.push(MON[d.getUTCMonth()]+' '+d.getUTCDate());
   }
   const datasets=spec.series.map(sr=>{
     const vals=new Array(WEEKS).fill(0);
@@ -320,23 +311,13 @@ function renderForecast(){
       responsive:true,
       maintainAspectRatio:false,
       interaction:{mode:'index',intersect:false},
-      plugins:{
-        legend:{labels:{color:tickC,font:{family:'DM Sans',size:10},boxWidth:12}},
-        tooltip:{callbacks:{footer:items=>{let t=0;items.forEach(i=>{t+=i.parsed.y;});return 'Total: '+t;}}},
-        zoom:zoomOn?{
-          limits:{x:{min:0,max:WEEKS-1,minRange:3}},
-          pan:{enabled:true,mode:'x'},
-          zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:'x'}
-        }:{}
-      },
+      plugins:{legend:{labels:{color:tickC,font:{family:'DM Sans',size:10},boxWidth:12}}},
       scales:{
-        x:{stacked:true,min:WEEKS>VIEW?WEEKS-VIEW:0,max:WEEKS-1,title:{display:true,text:'Week ending',color:'#7A94A8',font:{size:10}},ticks:{color:tickC,font:{size:9}},grid:{display:false}},
+        x:{stacked:true,title:{display:true,text:'Week ending',color:'#7A94A8',font:{size:10}},ticks:{color:tickC,font:{size:9}},grid:{display:false}},
         y:{stacked:true,beginAtZero:true,title:{display:true,text:'Incidents per week',color:'#7A94A8',font:{size:10}},ticks:{color:tickC,precision:0},grid:{color:grid}}
       }
     }
   });
-  const hint=$('fc-hint');
-  if(hint)hint.classList.toggle('hidden',!zoomOn);
 }
 
 /* ------------------------------------ map overlay ------------------------------------ */
@@ -457,15 +438,7 @@ export function clearAnalysis(){
   fitMemo.clear();
 }
 
-function initForecastZoom(){
-  $('ch-forecast').addEventListener('dblclick',()=>{
-    const c=state.charts.forecast;
-    if(c&&c.resetZoom)c.resetZoom();
-  });
-}
-
 export function initAnalysis(){
-  initForecastZoom();
   document.querySelectorAll('.algo-card').forEach(card=>{
     card.addEventListener('click',()=>selectAlgo(card.dataset.algo));
     card.addEventListener('keydown',e=>{
