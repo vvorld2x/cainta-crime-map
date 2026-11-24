@@ -225,23 +225,6 @@
 </div>
 
 <div class="panel" id="panel-predict">
-  <div class="card filter-card" id="analysis-filters">
-    <div class="an-filter-row">
-      <div class="an-field">
-        <label for="an-brgy">Barangay</label>
-        <select id="an-brgy"><option value="">All Barangays</option></select>
-      </div>
-      <div class="an-field grow">
-        <div class="an-lbl">Crime Type</div>
-        <div class="an-chips" id="an-types" role="group" aria-label="Filter by crime type"></div>
-      </div>
-      <div class="an-actions">
-        <button type="button" class="ctl-btn" id="an-all-types">All Types</button>
-        <button type="button" class="ctl-btn" id="an-reset">Reset Filters</button>
-      </div>
-    </div>
-    <p class="chart-note dim" id="an-scope"></p>
-  </div>
   <div class="algo-cards" role="radiogroup" aria-label="Analysis method">
     <div class="algo-card sel" data-algo="kmeans" id="ac-kmeans" role="radio" tabindex="0" aria-checked="true">
       <div class="algo-badge">Active</div>
@@ -271,7 +254,19 @@
   </div>
   <div id="analysis-results">
     <div class="row2">
-      <div class="card"><h3 id="forecast-title">Weekly Incidents</h3><div class="chart-box"><canvas id="ch-forecast"></canvas></div></div>
+      <div class="card"><h3 id="forecast-title">Weekly Incidents</h3>
+        <div class="ctl-row">
+          <span class="chart-note dim">Ctrl + scroll, pinch or use the buttons to zoom. Drag to pan.</span>
+          <div class="ctl-btns hidden" id="fc-zoombar">
+            <button type="button" class="ctl-btn" id="fc-zin" title="Zoom in" aria-label="Zoom in"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+            <button type="button" class="ctl-btn" id="fc-zout" title="Zoom out" aria-label="Zoom out"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
+            <button type="button" class="ctl-btn" id="fc-pl" title="Pan left" aria-label="Pan left"><i class="fa-solid fa-arrow-left"></i></button>
+            <button type="button" class="ctl-btn" id="fc-pr" title="Pan right" aria-label="Pan right"><i class="fa-solid fa-arrow-right"></i></button>
+            <button type="button" class="ctl-btn" id="fc-reset" title="Reset zoom" aria-label="Reset zoom"><i class="fa-solid fa-rotate-left"></i></button>
+          </div>
+        </div>
+        <div class="chart-box"><canvas id="ch-forecast"></canvas></div>
+      </div>
       <div class="card"><h3>Recommended Intervention Zones</h3><div id="risk-zones"></div></div>
     </div>
     <div class="tbl-wrap">
