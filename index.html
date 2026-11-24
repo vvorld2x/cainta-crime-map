@@ -225,6 +225,23 @@
 </div>
 
 <div class="panel" id="panel-predict">
+  <div class="card filter-card" id="analysis-filters">
+    <div class="an-filter-row">
+      <div class="an-field">
+        <label for="an-brgy">Barangay</label>
+        <select id="an-brgy"><option value="">All Barangays</option></select>
+      </div>
+      <div class="an-field grow">
+        <div class="an-lbl">Crime Type</div>
+        <div class="an-chips" id="an-types" role="group" aria-label="Filter by crime type"></div>
+      </div>
+      <div class="an-actions">
+        <button type="button" class="ctl-btn" id="an-all-types">All Types</button>
+        <button type="button" class="ctl-btn" id="an-reset">Reset Filters</button>
+      </div>
+    </div>
+    <p class="chart-note dim" id="an-scope"></p>
+  </div>
   <div class="algo-cards" role="radiogroup" aria-label="Analysis method">
     <div class="algo-card sel" data-algo="kmeans" id="ac-kmeans" role="radio" tabindex="0" aria-checked="true">
       <div class="algo-badge">Active</div>
