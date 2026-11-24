@@ -1,8 +1,8 @@
 import {BARANGAYS,BRGY_COORDS,CRIME_TYPES} from './constants.js';
-import {state,brgyData} from './state.js';
+import {state,brgyData,visibleData} from './state.js';
 import {esc,$} from './util.js';
 import {LG} from './map.js';
-import {onRefresh} from './refresh.js';
+import {onRefresh,refreshAll} from './refresh.js';
 import {onTab} from './tabs.js';
 import {prepare,fitClusters,evalKMeans,evalRisk,evalForest,hour12,MIN_KMEANS,MIN_RF} from './ml.js';
 
@@ -21,6 +21,26 @@ const fitMemo=new Map();
 let keyMemo={ref:null,len:-1,key:''};
 
 function pct(v){return Math.round(v*100)+'%';}
+
+function typeData(){
+  return state.crimeData.filter(c=>state.activeTypes.has(c.type));
+}
+
+function activeTypeNames(){
+  return TYPE_NAMES.filter(n=>state.activeTypes.has(n));
+}
+
+function filterKey(){
+  return state.activeBrgy+'|'+activeTypeNames().join(',');
+}
+
+function scopeKey(){
+  return dataKey(state.crimeData)+'#'+filterKey();
+}
+
+function scopeName(){
+  return state.activeBrgy?'brgy':'types';
+}
 
 function dataKey(data){
   if(keyMemo.ref===data&&keyMemo.len===data.length)return keyMemo.key;
@@ -112,7 +132,9 @@ function renderCards(){
       !beats);
   }
   const r=results.rf;
-  if(!r.ok){
+  if(!r.ok&&r.single){
+    setCard('rf','N/A',0,'Select at least 2 crime types to compare.',true);
+  }else if(!r.ok){
     setCard('rf','N/A',0,'Needs at least '+MIN_RF+' records. You have '+r.have+'.',true);
   }else{
     const beats=r.value>r.baseline+0.005;
@@ -128,8 +150,7 @@ function renderCards(){
 const tick=()=>new Promise(r=>setTimeout(r,20));
 
 async function ensureEvaluation(){
-  const data=state.crimeData;
-  const key=dataKey(data);
+  const key=scopeKey();
   if(key===resultsKey&&(results||evaluating))return;
   resultsKey=key;
   results=null;
@@ -138,15 +159,17 @@ async function ensureEvaluation(){
   renderCards();
   await tick();
   if(token!==evalToken)return;
-  const P=prepare(data);
+  const Pall=prepare(typeData());
+  const Pscope=prepare(visibleData());
+  const names=activeTypeNames();
   const out={};
-  out.kmeans=evalKMeans(P);
+  out.kmeans=evalKMeans(Pscope);
   await tick();
   if(token!==evalToken)return;
-  out.lr=evalRisk(P,BARANGAYS);
+  out.lr=evalRisk(Pall,BARANGAYS);
   await tick();
   if(token!==evalToken)return;
-  out.rf=evalForest(P,TYPE_NAMES);
+  out.rf=names.length<2?{ok:false,single:true}:evalForest(Pall,names);
   if(token!==evalToken)return;
   results=out;
   evaluating=false;
@@ -159,7 +182,7 @@ async function ensureEvaluation(){
 /* ------------------------------ ranking and table ------------------------------ */
 
 function getFit(P,scope){
-  const mk=dataKey(state.crimeData)+'|'+scope;
+  const mk=scopeKey()+'|'+scope;
   if(fitMemo.has(mk))return fitMemo.get(mk);
   if(fitMemo.size>6)fitMemo.clear();
   const fit=fitClusters(P);
@@ -168,12 +191,12 @@ function getFit(P,scope){
 }
 
 function rankRows(){
-  const P=prepare(state.crimeData);
+  const P=prepare(typeData());
   const stats=barangayStats(P);
-  const rows=BARANGAYS.filter(b=>stats[b].n>0).map(b=>({b,s:stats[b]}));
+  const rows=BARANGAYS.filter(b=>stats[b].n>0&&(!state.activeBrgy||b===state.activeBrgy)).map(b=>({b,s:stats[b]}));
   const hot={};
   if(selected==='kmeans'&&P.length){
-    getFit(P,'all').clusters.forEach(c=>{
+    getFit(P,'types').clusters.forEach(c=>{
       if(!c.hotspot)return;
       c.members.forEach(m=>{hot[m.barangay]=(hot[m.barangay]||0)+1;});
     });
@@ -253,10 +276,10 @@ function destroyForecast(){
   }
 }
 
-function weeklySeries(P){
+function weeklySeries(P,Pall){
   if(selected==='kmeans'){
     const hot=new Set();
-    getFit(P,state.activeBrgy||'all').clusters.forEach(c=>{if(c.hotspot)c.members.forEach(m=>hot.add(m.id));});
+    getFit(P,scopeName()).clusters.forEach(c=>{if(c.hotspot)c.members.forEach(m=>hot.add(m.id));});
     return {title:'Weekly Incidents: Inside vs Outside Hotspots',series:[
       {name:'Inside hotspots',color:'#E8323A',test:p=>hot.has(p.id)},
       {name:'Outside hotspots',color:'#9AA8B8',test:p=>!hot.has(p.id)}
@@ -282,8 +305,10 @@ function weeklySeries(P){
 
 function renderForecast(){
   destroyForecast();
-  const P=prepare(brgyData());
-  const spec=weeklySeries(P);
+  const Pscope=prepare(visibleData());
+  const Pall=prepare(typeData());
+  const spec=weeklySeries(Pscope,Pall);
+  const P=selected==='lr'?Pall:Pscope;
   const ttl=$('forecast-title');
   if(ttl)ttl.textContent=spec.title;
   if(P.length<8)return;
@@ -337,12 +362,12 @@ function modeType(members){
 
 function drawOverlay(){
   LG.clusters.clearLayers();
-  const pts=brgyData();
+  const pts=visibleData();
   if(!pts.length)return;
   const P=prepare(pts);
   if(!P.length)return;
   if(selected==='kmeans'){
-    const fit=getFit(P,state.activeBrgy||'all');
+    const fit=getFit(P,scopeName());
     fit.clusters.forEach((c,i)=>{
       if(!c.size)return;
       const col=c.hotspot?'#E8323A':'#D97706';
@@ -396,7 +421,82 @@ function renderPanel(){
   renderZones();
 }
 
+function renderFilters(){
+  const sel=$('an-brgy');
+  if(sel&&sel.value!==state.activeBrgy)sel.value=state.activeBrgy;
+  const box=$('an-types');
+  if(box){
+    box.replaceChildren();
+    const scope=brgyData();
+    CRIME_TYPES.forEach(ct=>{
+      const cnt=scope.filter(c=>c.type===ct.name).length;
+      const on=state.activeTypes.has(ct.name);
+      const chip=document.createElement('div');
+      chip.className='an-chip'+(on?' on':'');
+      chip.dataset.type=ct.name;
+      chip.setAttribute('role','checkbox');
+      chip.setAttribute('aria-checked',on?'true':'false');
+      chip.tabIndex=0;
+      chip.innerHTML='<span class="an-chip-left"><span class="cf-dot" style="background:'+esc(ct.color)+'"></span>'+esc(ct.name)+'</span><span class="cf-cnt">'+cnt+'</span>';
+      box.appendChild(chip);
+    });
+  }
+  const note=$('an-scope');
+  if(note){
+    const n=visibleData().length;
+    const names=activeTypeNames();
+    const typeText=names.length===TYPE_NAMES.length?'all crime types':names.length+' of '+TYPE_NAMES.length+' crime types';
+    note.textContent='Analyzing '+n+' incident'+(n===1?'':'s')+' in '+(state.activeBrgy||'all barangays')+' for '+typeText+'.';
+  }
+}
+
+function toggleType(name){
+  if(state.activeTypes.has(name)){
+    if(state.activeTypes.size>1)state.activeTypes.delete(name);
+  }else{
+    state.activeTypes.add(name);
+  }
+  refreshAll();
+  const box=$('an-types');
+  const again=box?Array.from(box.children).find(c=>c.dataset.type===name):null;
+  if(again)again.focus();
+}
+
+function setBarangay(value){
+  state.activeBrgy=BARANGAYS.includes(value)?value:'';
+  const side=$('brgy-sel');
+  if(side)side.value=state.activeBrgy;
+  refreshAll();
+}
+
+function initFilters(){
+  const sel=$('an-brgy');
+  BARANGAYS.forEach(b=>sel.add(new Option(b,b)));
+  sel.addEventListener('change',e=>setBarangay(e.target.value));
+  const box=$('an-types');
+  box.addEventListener('click',e=>{
+    const chip=e.target.closest('.an-chip');
+    if(chip)toggleType(chip.dataset.type);
+  });
+  box.addEventListener('keydown',e=>{
+    if(e.key!=='Enter'&&e.key!==' ')return;
+    const chip=e.target.closest('.an-chip');
+    if(!chip)return;
+    e.preventDefault();
+    toggleType(chip.dataset.type);
+  });
+  $('an-all-types').addEventListener('click',()=>{
+    TYPE_NAMES.forEach(n=>state.activeTypes.add(n));
+    refreshAll();
+  });
+  $('an-reset').addEventListener('click',()=>{
+    TYPE_NAMES.forEach(n=>state.activeTypes.add(n));
+    setBarangay('');
+  });
+}
+
 export function updateAnalysis(){
+  renderFilters();
   drawOverlay();
   renderPanel();
   const panelOn=$('panel-predict').classList.contains('on');
@@ -439,6 +539,7 @@ export function clearAnalysis(){
 }
 
 export function initAnalysis(){
+  initFilters();
   document.querySelectorAll('.algo-card').forEach(card=>{
     card.addEventListener('click',()=>selectAlgo(card.dataset.algo));
     card.addEventListener('keydown',e=>{
