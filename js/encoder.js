@@ -379,6 +379,46 @@ async function importExcel(evt){
   }
 }
 
+/* Same columns the importer reads, so an exported file can be imported again. */
+const EXPORT_COLUMNS=['Date','Time','Crime_Type','Barangay','Status','Location_Description','Modus_Operandi','Latitude','Longitude'];
+
+function exportRows(){
+  return state.crimeData
+    .slice()
+    .sort((a,b)=>(a.date+' '+a.time).localeCompare(b.date+' '+b.time)||a.id-b.id)
+    .map(c=>({
+      Date:c.date,
+      Time:String(c.time).slice(0,5),
+      Crime_Type:c.type,
+      Barangay:c.barangay,
+      Status:c.status,
+      Location_Description:c.location,
+      Modus_Operandi:c.modus,
+      Latitude:Number(c.lat),
+      Longitude:Number(c.lng)
+    }));
+}
+
+function exportExcel(){
+  const rows=exportRows();
+  if(!rows.length){
+    showToast('No records to export','error');
+    return;
+  }
+  try{
+    const ws=XLSX.utils.json_to_sheet(rows,{header:EXPORT_COLUMNS});
+    ws['!cols']=[{wch:11},{wch:7},{wch:16},{wch:24},{wch:22},{wch:28},{wch:24},{wch:11},{wch:11}];
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'Incidents');
+    const d=new Date();
+    const stamp=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    XLSX.writeFile(wb,'cainta-incidents-'+stamp+'.xlsx');
+    showToast(rows.length+' records exported','success');
+  }catch(e){
+    showToast('Could not export Excel file','error');
+  }
+}
+
 export function initEncoder(){
   $('save-btn').addEventListener('click',saveRecord);
   $('clear-btn').addEventListener('click',clearForm);
@@ -393,6 +433,7 @@ export function initEncoder(){
   $('import-btn').addEventListener('click',()=>$('xlsx-input').click());
   $('xlsx-input').addEventListener('change',importExcel);
   $('pdf-btn').addEventListener('click',openPdfExport);
+  $('xlsx-export-btn').addEventListener('click',exportExcel);
   $('enc-tbl').addEventListener('click',e=>{
     const del=e.target.closest('[data-del-id]');
     if(del){
