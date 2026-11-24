@@ -251,8 +251,8 @@ function zoomAvailable(){
 }
 
 function destroyForecast(){
-  const zb=$('fc-zoombar');
-  if(zb)zb.classList.add('hidden');
+  const hint=$('fc-hint');
+  if(hint)hint.classList.add('hidden');
   if(state.charts.forecast){
     try{state.charts.forecast.destroy();}catch(e){}
     delete state.charts.forecast;
@@ -326,7 +326,7 @@ function renderForecast(){
         zoom:zoomOn?{
           limits:{x:{min:0,max:WEEKS-1,minRange:3}},
           pan:{enabled:true,mode:'x'},
-          zoom:{wheel:{enabled:true,modifierKey:'ctrl'},pinch:{enabled:true},mode:'x'}
+          zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:'x'}
         }:{}
       },
       scales:{
@@ -335,8 +335,8 @@ function renderForecast(){
       }
     }
   });
-  const zb=$('fc-zoombar');
-  if(zb)zb.classList.toggle('hidden',!zoomOn);
+  const hint=$('fc-hint');
+  if(hint)hint.classList.toggle('hidden',!zoomOn);
 }
 
 /* ------------------------------------ map overlay ------------------------------------ */
@@ -458,15 +458,10 @@ export function clearAnalysis(){
 }
 
 function initForecastZoom(){
-  const run=fn=>()=>{
+  $('ch-forecast').addEventListener('dblclick',()=>{
     const c=state.charts.forecast;
-    if(c)fn(c);
-  };
-  $('fc-zin').addEventListener('click',run(c=>{if(c.zoom)c.zoom(1.4);}));
-  $('fc-zout').addEventListener('click',run(c=>{if(c.zoom)c.zoom(0.7);}));
-  $('fc-pl').addEventListener('click',run(c=>{if(c.pan)c.pan({x:150},undefined,'default');}));
-  $('fc-pr').addEventListener('click',run(c=>{if(c.pan)c.pan({x:-150},undefined,'default');}));
-  $('fc-reset').addEventListener('click',run(c=>{if(c.resetZoom)c.resetZoom();}));
+    if(c&&c.resetZoom)c.resetZoom();
+  });
 }
 
 export function initAnalysis(){
