@@ -255,16 +255,7 @@
   <div id="analysis-results">
     <div class="row2">
       <div class="card"><h3 id="forecast-title">Weekly Incidents</h3>
-        <div class="ctl-row">
-          <span class="chart-note dim">Ctrl + scroll, pinch or use the buttons to zoom. Drag to pan.</span>
-          <div class="ctl-btns hidden" id="fc-zoombar">
-            <button type="button" class="ctl-btn" id="fc-zin" title="Zoom in" aria-label="Zoom in"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
-            <button type="button" class="ctl-btn" id="fc-zout" title="Zoom out" aria-label="Zoom out"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
-            <button type="button" class="ctl-btn" id="fc-pl" title="Pan left" aria-label="Pan left"><i class="fa-solid fa-arrow-left"></i></button>
-            <button type="button" class="ctl-btn" id="fc-pr" title="Pan right" aria-label="Pan right"><i class="fa-solid fa-arrow-right"></i></button>
-            <button type="button" class="ctl-btn" id="fc-reset" title="Reset zoom" aria-label="Reset zoom"><i class="fa-solid fa-rotate-left"></i></button>
-          </div>
-        </div>
+        <p class="chart-note dim hidden" id="fc-hint">Scroll or pinch to zoom, drag to pan, double-click to reset.</p>
         <div class="chart-box"><canvas id="ch-forecast"></canvas></div>
       </div>
       <div class="card"><h3>Recommended Intervention Zones</h3><div id="risk-zones"></div></div>
